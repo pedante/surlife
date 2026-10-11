@@ -17,7 +17,11 @@ DEFAULT_MODEL = "openrouter/free"
 
 
 class GatewayError(Exception):
-    """Public, scrubbed failure class; never includes API keys or request headers."""
+    """Structured safe diagnostics. Never include provider body, prompt or API key."""
+
+    def __init__(self, message: str, reason: str = "gateway_error") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -37,22 +41,28 @@ def require_free_model(model: str) -> None:
 
 
 def parse_answer(content: str, actual_model: str, usage: dict) -> Reply:
-    """Extract a tiny data-only answer; never execute model output."""
+    """Decode one bounded JSON action, even when a free model surrounds it with prose."""
     if not isinstance(content, str) or len(content) > 4096:
-        raise GatewayError("non-text or oversized model response")
+        raise GatewayError("non-text or oversized model response", "invalid_content")
     text = content.strip()
+    if not text:
+        raise GatewayError("model returned empty content", "empty_content")
+    # Many chat models add a Markdown fence or a one-line preamble despite instructions.
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         text = text.rsplit("```", 1)[0].strip()
+    first = text.find("{")
+    if first < 0:
+        raise GatewayError("model returned no JSON object", "invalid_json")
     try:
-        data = json.loads(text)
+        data, _end = json.JSONDecoder().raw_decode(text[first:])
     except (ValueError, TypeError) as e:
-        raise GatewayError("model did not produce a JSON object") from e
+        raise GatewayError("model returned invalid JSON", "invalid_json") from e
     if not isinstance(data, dict) or "mask" not in data:
-        raise GatewayError("model response missing mask")
+        raise GatewayError("model response missing mask", "missing_mask")
     mask = data["mask"]
     if mask is not None and (type(mask) is not int or not 0 <= mask < 32):
-        raise GatewayError("mask must be null or an integer from 0 through 31")
+        raise GatewayError("mask must be null or an integer from 0 through 31", "invalid_mask")
     update = data.get("soul_update", "")
     if not isinstance(update, str):
         update = ""
@@ -64,19 +74,31 @@ def parse_answer(content: str, actual_model: str, usage: dict) -> Reply:
     return Reply(mask=mask, soul_update=update, model=actual_model[:160], usage=metric)
 
 
+def provider_error_reason(error: object, prefix: str) -> str:
+    """Report only a numeric code from a provider envelope; never untrusted prose."""
+    if not isinstance(error, dict):
+        return prefix
+    code = error.get("code")
+    if type(code) is int and 100 <= code <= 599:
+        return f"{prefix}_{code}"
+    if isinstance(code, str) and len(code) == 3 and code.isascii() and code.isdigit():
+        return f"{prefix}_{code}"
+    return prefix
+
+
 class OpenRouterGateway:
     def __init__(
         self,
         model: str = DEFAULT_MODEL,
         max_requests: int = 6,
-        max_output_tokens: int = 128,
+        max_output_tokens: int = 512,
         transport: Callable[[dict, str, int], dict] | None = None,
     ):
         require_free_model(model)
         if type(max_requests) is not int or max_requests < 1:
             raise ValueError("max_requests must be positive")
-        if type(max_output_tokens) is not int or not 16 <= max_output_tokens <= 512:
-            raise ValueError("max_output_tokens must be between 16 and 512")
+        if type(max_output_tokens) is not int or not 16 <= max_output_tokens <= 1024:
+            raise ValueError("max_output_tokens must be between 16 and 1024")
         self.model, self.limit, self.calls = model, max_requests, 0
         self.max_output_tokens = max_output_tokens
         self.transport = transport or self._http
@@ -95,16 +117,16 @@ class OpenRouterGateway:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
                 if response.status != 200:
-                    raise GatewayError(f"unexpected provider status {response.status}")
+                    raise GatewayError(f"unexpected provider HTTP status {response.status}", f"http_{response.status}")
                 data = response.read(150_000)
         except urllib.error.HTTPError as e:
-            raise GatewayError(f"OpenRouter returned HTTP {e.code}") from None
+            raise GatewayError(f"OpenRouter returned HTTP {e.code}", f"http_{e.code}") from None
         except (urllib.error.URLError, TimeoutError, OSError):
-            raise GatewayError("OpenRouter request failed or timed out") from None
+            raise GatewayError("OpenRouter request failed or timed out", "network_failure") from None
         try:
             return json.loads(data)
         except (ValueError, TypeError) as e:
-            raise GatewayError("invalid provider JSON") from e
+            raise GatewayError("invalid provider response JSON", "invalid_provider_json") from e
 
     def ask(self, messages: list[dict]) -> Reply:
         if not self.remaining:
@@ -119,10 +141,37 @@ class OpenRouterGateway:
         }
         try:
             raw = self.transport(payload, api_key, 30)
-            choice = raw["choices"][0]["message"]["content"]
-            return parse_answer(choice, str(raw.get("model", self.model)), raw.get("usage") or {})
+            if not isinstance(raw, dict):
+                raise GatewayError("unexpected OpenRouter response shape", "invalid_response")
+            if raw.get("error"):
+                reason = provider_error_reason(raw["error"], "provider_error")
+                raise GatewayError("OpenRouter reported a provider error", reason)
+            choices = raw.get("choices")
+            if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+                raise GatewayError("OpenRouter returned no completion choice", "missing_choice")
+            choice = choices[0]
+            if choice.get("finish_reason") == "error" or choice.get("error"):
+                reason = provider_error_reason(choice.get("error"), "completion_error")
+                raise GatewayError("OpenRouter reported an interrupted completion", reason)
+            if choice.get("finish_reason") == "length":
+                raise GatewayError(
+                    "model output hit max completion tokens; increase --max-output-tokens",
+                    "completion_truncated",
+                )
+            message = choice.get("message")
+            if not isinstance(message, dict):
+                raise GatewayError("OpenRouter response missing assistant message", "missing_message")
+            content = message.get("content")
+            if isinstance(content, list):
+                content = "\n".join(
+                    part["text"] for part in content if isinstance(part, dict)
+                    and part.get("type") == "text" and isinstance(part.get("text"), str)
+                )
+            return parse_answer(content, str(raw.get("model") or self.model), raw.get("usage") or {})
+        except GatewayError:
+            raise
         except (KeyError, TypeError, IndexError) as e:
-            raise GatewayError("missing or malformed provider response") from e
+            raise GatewayError("missing or malformed provider response", "invalid_response") from e
 
 
 class FakeGateway(OpenRouterGateway):
