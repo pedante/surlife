@@ -314,7 +314,7 @@ def test_http_429_stops_future_requests_and_keeps_replay_valid(tmp_path, monkeyp
     assert llm["consultations"] == 1
     assert llm["provider_failures"] == 1
     assert llm["model_actions"] == 0
-    assert llm["rate_limited_skips"] >= 1
+    assert report["rate_limited_skips"] >= 1
     assert report["failure_reasons"] == {"http_429": 1}
     assert llm["unknown_usage_requests"] == 1
     saved = json.loads((tmp_path / "m14.json").read_text())
@@ -351,7 +351,7 @@ def test_other_gateway_errors_do_not_trigger_429_circuit_breaker(tmp_path, monke
     llm = report["summary"]["arms"]["llm"]
     assert calls == [1, 2]
     assert llm["consultations"] == 2
-    assert llm["rate_limited_skips"] == 0
+    assert report["rate_limited_skips"] == 0
     assert llm["provider_failures"] == 1
     assert llm["model_actions"] == 1
     assert report["failure_reasons"] == {"http_503": 1}
