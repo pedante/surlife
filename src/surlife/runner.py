@@ -12,6 +12,7 @@ from .core import (
     Action, Arena,
 )
 from .gateway import FakeGateway, GatewayError, OpenRouterGateway
+from .model_registry import check_model
 from .souls import Soul
 from .storage import Journal
 
@@ -35,6 +36,10 @@ def run_m1(args, db_path: Path) -> dict:
                                  max_output_tokens=args.max_output_tokens,
                                  reasoning=reasoning)
                if args.provider == "openrouter" else FakeGateway(max_requests=args.max_requests))
+    # The catalog check does not use the key, and runs before any
+    # event/energy is created or provider completion request is sent.
+    if args.provider == "openrouter":
+        check_model(args.model)
     policies = {"a": args.a, "b": args.b}
     run_id = args.run_id or uuid4().hex[:12]
     root = Path(args.souls_dir) / run_id
