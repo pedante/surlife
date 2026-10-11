@@ -91,11 +91,17 @@ def run_m1(args, db_path: Path) -> dict:
                         "usage": reply.usage, "soul_version": soul.version,
                         "soul_hash": soul.sha256,
                     }
-                except GatewayError:
+                except GatewayError as exc:
                     actions[a] = POLICIES["greedy"](obs, Random(0))
-                    metadata[a] = {"status": "provider_or_parse_failure", "consulted": gateway.calls > prior,
-                                   "model": gateway.model, "usage": None,
-                                   "soul_version": soul.version, "soul_hash": soul.sha256}
+                    metadata[a] = {
+                        "status": "provider_or_parse_failure",
+                        "failure_reason": exc.reason,
+                        "consulted": gateway.calls > prior,
+                        "model": exc.model or gateway.model,
+                        "usage": exc.usage,
+                        "soul_version": soul.version,
+                        "soul_hash": soul.sha256,
+                    }
                 if gateway.calls > prior:
                     consultations[a] = 1  # charged even for failed/unknown-usage calls
 
