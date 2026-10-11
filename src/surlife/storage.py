@@ -117,6 +117,7 @@ class Journal:
         usage_missing = 0
         usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         routed_models = {}
+        failure_reasons: dict[str, int] = {}
         for tick, payload, previous_hash, event_hash in self.db.execute(
             "SELECT tick, payload, previous_hash, event_hash FROM rounds WHERE run_id=? ORDER BY tick", (run_id,)
         ):
@@ -134,6 +135,9 @@ class Journal:
             if saved_transfers != expected["transfers"]:
                 raise ValueError("transaction ledger disagrees with recorded world")
             for meta in data.get("model_calls", {}).values():
+                if meta.get("status") == "provider_or_parse_failure":
+                    reason = str(meta.get("failure_reason", "unspecified"))
+                    failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
                 if not meta.get("consulted"):
                     continue
                 provider_requests += 1
@@ -162,4 +166,5 @@ class Journal:
                 "alive": {a: arena.balances[a] > 0 for a in AGENTS},
                 "entered": entered, "verified": True,
                 "provider_requests": provider_requests, "reported_tokens": usage_totals,
-                "unknown_usage_requests": usage_missing, "routed_models": routed_models}
+                "unknown_usage_requests": usage_missing, "routed_models": routed_models,
+                "failure_reasons": failure_reasons}
