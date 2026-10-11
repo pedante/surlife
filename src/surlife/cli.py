@@ -32,6 +32,11 @@ def main() -> None:
         parser.error("--seed and --ticks must be nonnegative")
     path = Path(args.db)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Replay is always offline and takes precedence over --provider / --a llm.
+    if args.replay:
+        with Journal(path) as journal:
+            print(json.dumps(journal.replay(args.replay), indent=2, sort_keys=True))
+        return
     if args.a == "llm" or args.b == "llm":
         from .runner import run_m1
         try:
@@ -41,9 +46,6 @@ def main() -> None:
         print(json.dumps(report, indent=2, sort_keys=True))
         return
     with Journal(path) as journal:
-        if args.replay:
-            print(json.dumps(journal.replay(args.replay), indent=2, sort_keys=True))
-            return
         run_id = args.run_id or uuid4().hex[:12]
         manifest = {"rules": RULES_VERSION, "seed": args.seed, "start_energy": START_ENERGY,
                     "stake": STAKE, "policies": {"a": args.a, "b": args.b},
