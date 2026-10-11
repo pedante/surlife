@@ -34,6 +34,40 @@ class Soul:
             raise ValueError("soul text must be 1..1600 characters")
         return cls(actor=actor, base=base)
 
+    @classmethod
+    def restore(cls, actor: str, snapshot: str) -> "Soul":
+        """Inherit the previous experiment's data, with integrity/schema checks."""
+        path = Path(snapshot)
+        if path.stat().st_size > 50_000:
+            raise ValueError("soul snapshot is too large")
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError("invalid soul JSON snapshot") from exc
+        if not isinstance(data, dict) or data.get("actor") != actor:
+            raise ValueError("soul snapshot belongs to another actor")
+        base, notes = data.get("base"), data.get("notes")
+        memory, revisions, version = data.get("memory"), data.get("revisions"), data.get("version")
+        if not isinstance(base, str) or not 1 <= len(base) <= 1600:
+            raise ValueError("invalid soul base")
+        if not isinstance(notes, list) or len(notes) > 3 or any(
+            not isinstance(n, str) or not 1 <= len(n) <= 120 for n in notes
+        ):
+            raise ValueError("invalid soul notes")
+        if type(version) is not int or version != len(notes):
+            raise ValueError("inconsistent soul version")
+        if not isinstance(memory, list) or len(memory) > 8 or not all(isinstance(x, dict) for x in memory):
+            raise ValueError("invalid soul memory")
+        if not isinstance(revisions, list) or len(revisions) != version or not all(
+            isinstance(x, dict) for x in revisions
+        ):
+            raise ValueError("invalid soul history")
+        soul = cls(actor=actor, base=base, version=version, notes=notes,
+                   memory=memory, revisions=revisions)
+        if soul.sha256 != data.get("sha256"):
+            raise ValueError("soul snapshot hash mismatch")
+        return soul
+
     @property
     def full_prompt(self) -> str:
         return self.base + "".join("\nExperience note: " + n for n in self.notes)
