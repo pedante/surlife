@@ -81,6 +81,8 @@ def _usage(interaction) -> dict:
 
 def _reason(exc: Exception) -> str:
     code = getattr(exc, "code", None)
+    if code is None:
+        code = getattr(exc, "status_code", None)
     if type(code) is int and 400 <= code <= 599:
         return "http_" + str(code)
     if isinstance(code, str) and code.isdigit() and 400 <= int(code) <= 599:
@@ -99,6 +101,13 @@ class GeminiGateway:
             raise ValueError("max_output_tokens must be 16..1024")
         if reasoning not in ("off", "low", "auto"):
             raise ValueError("reasoning must be off, low or auto")
+        if transport is None:
+            try:
+                from google import genai  # noqa: F401 - optional SDK preflight
+            except ImportError:
+                raise ValueError(
+                    "Google provider requires python -m pip install -e '.[gemini]'"
+                ) from None
         self.model, self.limit, self.calls = model, max_requests, 0
         self.max_output_tokens, self.reasoning = max_output_tokens, reasoning
         self.transport = transport or self._sdk_call
