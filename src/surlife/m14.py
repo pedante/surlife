@@ -295,10 +295,6 @@ def _summarize(manifest: dict, arms: dict[str, list[dict]]) -> dict:
             "consultations": len(charged),
             "model_actions": len(model_records),
             "provider_failures": len(failures),
-            "rate_limited_skips": sum(
-                r.get("benchmark", {}).get("source") == "greedy_rate_limited"
-                for r in records
-            ),
             "reported_tokens": tokens,
             "unknown_usage_requests": unknown_usage,
         }
@@ -406,6 +402,10 @@ def run_m14(args) -> dict:
         "manifest": manifest, "summary": summary, "head": report["head"],
         "verified": True, "report_path": filename,
         "failure_reasons": failure_reasons,
+        "rate_limited_skips": sum(
+            row.get("benchmark", {}).get("source") == "greedy_rate_limited"
+            for row in arms.get("llm", [])
+        ),
     }
 
 
