@@ -288,3 +288,71 @@ def test_safe_failure_summary_preserves_historical_replay(tmp_path, monkeypatch)
     assert "failure_reasons" not in persisted["summary"]
     assert verify_report(persisted)["head"] == result["head"]
     assert "an untrusted provider message" not in json.dumps(result)
+
+
+def test_http_429_stops_future_requests_and_keeps_replay_valid(tmp_path, monkeypatch):
+    import surlife.m14 as m14
+    calls = []
+    class RateLimited:
+        def __init__(self):
+            self.calls = 0
+            self.limit = 8
+            self.model = "fake/rate-limited"
+        @property
+        def remaining(self):
+            return self.limit - self.calls
+        def ask(self, messages, *, mode="action", benchmark_items=None):
+            self.calls += 1
+            calls.append(self.calls)
+            raise GatewayError("provider rate limited", "http_429")
+    monkeypatch.setattr(m14, "_gateway", lambda _: RateLimited())
+    report = run_m14(opts(
+        tmp_path, benchmark_cases=8, cognition="always", max_requests=8
+    ))
+    llm = report["summary"]["arms"]["llm"]
+    assert calls == [1]
+    assert llm["consultations"] == 1
+    assert llm["provider_failures"] == 1
+    assert llm["model_actions"] == 0
+    assert llm["rate_limited_skips"] >= 1
+    assert report["failure_reasons"] == {"http_429": 1}
+    assert llm["unknown_usage_requests"] == 1
+    saved = json.loads((tmp_path / "m14.json").read_text())
+    later = saved["arms"]["llm"][1:]
+    assert all(row["consultations"]["a"] == 0 for row in later)
+    assert all(row["benchmark"]["source"] == "greedy_rate_limited"
+               for row in later if row["attempted"]["a"])
+    assert verify_report(saved)["verified"]
+
+
+def test_other_gateway_errors_do_not_trigger_429_circuit_breaker(tmp_path, monkeypatch):
+    import surlife.m14 as m14
+    calls = []
+    class OccasionalFailure:
+        def __init__(self):
+            self.calls = 0
+            self.limit = 2
+            self.model = "fake/unavailable"
+        @property
+        def remaining(self):
+            return self.limit - self.calls
+        def ask(self, messages, *, mode="action", benchmark_items=None):
+            self.calls += 1
+            calls.append(self.calls)
+            if self.calls == 1:
+                raise GatewayError("provider problem", "http_503")
+            return Reply(mask=0, soul_update="", model=self.model,
+                         usage={"prompt_tokens": 1, "completion_tokens": 1,
+                                "total_tokens": 2})
+    monkeypatch.setattr(m14, "_gateway", lambda _: OccasionalFailure())
+    report = run_m14(opts(
+        tmp_path, benchmark_cases=5, cognition="always", max_requests=2
+    ))
+    llm = report["summary"]["arms"]["llm"]
+    assert calls == [1, 2]
+    assert llm["consultations"] == 2
+    assert llm["rate_limited_skips"] == 0
+    assert llm["provider_failures"] == 1
+    assert llm["model_actions"] == 1
+    assert report["failure_reasons"] == {"http_503": 1}
+    assert verify_report_file(tmp_path / "m14.json")["verified"]
