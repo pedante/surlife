@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument("--provider", choices=("fake", "openrouter"), default="fake")
     parser.add_argument("--model", default="openrouter/free", help="openrouter/free or a pinned :free model")
     parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
-    parser.add_argument("--max-output-tokens", type=int, default=128)
+    parser.add_argument("--max-output-tokens", type=int, default=512)
     parser.add_argument("--souls-dir", default="out/souls")
     parser.add_argument("--soul-a", help="optional custom initial soul text (LLM A)")
     parser.add_argument("--soul-b", help="optional custom initial soul text (LLM B)")
