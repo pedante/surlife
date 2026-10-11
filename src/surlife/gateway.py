@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "qwen/qwen3.8-27b:free"
+DEFAULT_MODEL = "dots-studio/dots-3-note-preview:free"
 
 # Use an endpoint that can return the organism's tiny JSON action. The
 # free router may otherwise select moderation, embedding or reranking models.
