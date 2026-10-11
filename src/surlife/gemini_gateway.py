@@ -191,10 +191,16 @@ class GeminiGateway:
         content = getattr(interaction, "output_text", None)
         try:
             if mode == "benchmark":
-                return parse_benchmark_answer(content, self.model, usage, benchmark_items)
-            if mode == "reflection":
-                return parse_reflection(content, self.model, usage)
-            return parse_answer(content, self.model, usage)
+                parsed = parse_benchmark_answer(content, self.model, usage, benchmark_items)
+            elif mode == "reflection":
+                parsed = parse_reflection(content, self.model, usage)
+            else:
+                parsed = parse_answer(content, self.model, usage)
+            # Shared OpenRouter parsers normalize the traditional 3-token
+            # counters, so reconstruct the validated Reply with Google's
+            # optional numeric thought counter preserved.
+            return Reply(mask=parsed.mask, soul_update=parsed.soul_update,
+                         model=parsed.model, usage=usage, status=parsed.status)
         except GatewayError as exc:
             exc.model, exc.usage = self.model, usage
             raise
