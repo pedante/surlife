@@ -175,7 +175,7 @@ class OpenRouterGateway:
         self.calls += 1  # debit before send; never silently retry
         payload = {
             "model": self.model, "messages": messages, "temperature": 0,
-            "max_completion_tokens": self.max_output_tokens, "stream": False,
+            "max_tokens": self.max_output_tokens, "stream": False,
         }
         # Prefer a concise answer over spending the entire completion budget
         # on hidden reasoning. Availability/behavior varies by free model.
