@@ -113,6 +113,10 @@ class Journal:
         earned = {"a": 0, "b": 0}
         consultations = {"a": 0, "b": 0}
         n = 0
+        provider_requests = 0
+        usage_missing = 0
+        usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        routed_models = {}
         for tick, payload, previous_hash, event_hash in self.db.execute(
             "SELECT tick, payload, previous_hash, event_hash FROM rounds WHERE run_id=? ORDER BY tick", (run_id,)
         ):
@@ -129,6 +133,18 @@ class Journal:
                 "SELECT source, destination, amount, kind FROM transfers WHERE run_id=? AND tick=? ORDER BY seq", (run_id, tick))]
             if saved_transfers != expected["transfers"]:
                 raise ValueError("transaction ledger disagrees with recorded world")
+            for meta in data.get("model_calls", {}).values():
+                if not meta.get("consulted"):
+                    continue
+                provider_requests += 1
+                model = str(meta.get("model", "unknown"))
+                routed_models[model] = routed_models.get(model, 0) + 1
+                usage = meta.get("usage")
+                if not isinstance(usage, dict) or any(type(usage.get(k)) is not int for k in usage_totals):
+                    usage_missing += 1
+                else:
+                    for k in usage_totals:
+                        usage_totals[k] += usage[k]
             if expected["entered"]:
                 entered += 1
             for a in AGENTS:
@@ -144,4 +160,6 @@ class Journal:
                 "wins": wins, "correct": correct, "attempts": attempts,
                 "earned": earned, "consultations": consultations,
                 "alive": {a: arena.balances[a] > 0 for a in AGENTS},
-                "entered": entered, "verified": True}
+                "entered": entered, "verified": True,
+                "provider_requests": provider_requests, "reported_tokens": usage_totals,
+                "unknown_usage_requests": usage_missing, "routed_models": routed_models}
