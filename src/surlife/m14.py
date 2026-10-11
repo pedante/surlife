@@ -15,6 +15,7 @@ from typing import Any
 
 from .core import Action, Arena, Observation, POLICIES, RULES_VERSION, START_ENERGY, STAKE, Task
 from .gateway import FakeGateway, GatewayError, OpenRouterGateway
+from .gemini_gateway import GeminiGateway, check_gemini_model
 from .model_registry import check_model
 from .storage import canonical
 
@@ -171,7 +172,16 @@ def _gateway(args):
                                  max_requests=args.max_requests,
                                  max_output_tokens=args.max_output_tokens,
                                  reasoning=args.reasoning)
-    return FakeGateway(max_requests=args.max_requests)
+    if args.provider == "google":
+        if not os.environ.get("GOOGLE_API_KEY", "").strip():
+            raise ValueError("GOOGLE_API_KEY required for --provider google")
+        check_gemini_model(args.model)
+        return GeminiGateway(model=args.model, max_requests=args.max_requests,
+                             max_output_tokens=args.max_output_tokens,
+                             reasoning=args.reasoning)
+    if args.provider == "fake":
+        return FakeGateway(max_requests=args.max_requests)
+    raise ValueError("unknown benchmark provider")
 
 
 def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[dict]:
@@ -206,7 +216,7 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
                 try:
                     reply = gateway.ask(_prompt(obs["a"]), mode="benchmark",
                                         benchmark_items=len(obs["a"].task.items))
-                    if args.provider == "openrouter" and reply.model != args.model:
+                    if args.provider in ("openrouter", "google") and reply.model != args.model:
                         # A free router/provider may substitute a different
                         # model. Never mix unannounced model swaps into results.
                         mismatch = GatewayError(
@@ -354,7 +364,7 @@ def run_m14(args) -> dict:
         "items": args.benchmark_items, "profile": args.benchmark_profile,
         "challenger": args.a, "opponent": args.b,
         "provider": args.provider if gateway else "none",
-        "requested_model": args.model if args.provider == "openrouter" and gateway else None,
+        "requested_model": args.model if args.provider in ("openrouter", "google") and gateway else None,
         "cognition": args.cognition,
         "request_cap": args.max_requests if gateway else 0,
     }
