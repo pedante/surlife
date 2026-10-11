@@ -61,7 +61,7 @@ class Reply:
 
 
 def require_free_model(model: str) -> None:
-    if model != DEFAULT_MODEL and not model.endswith(":free"):
+    if model != "openrouter/free" and not model.endswith(":free"):
         raise ValueError("M1 only accepts openrouter/free or a pinned :free model; paid models disabled")
     if any(c.isspace() for c in model) or len(model) > 140:
         raise ValueError("invalid model identifier")
