@@ -109,6 +109,9 @@ class Journal:
         wins = {"a": 0, "b": 0}
         correct = {"a": 0, "b": 0}
         entered = 0
+        attempts = {"a": 0, "b": 0}
+        earned = {"a": 0, "b": 0}
+        consultations = {"a": 0, "b": 0}
         n = 0
         for tick, payload, previous_hash, event_hash in self.db.execute(
             "SELECT tick, payload, previous_hash, event_hash FROM rounds WHERE run_id=? ORDER BY tick", (run_id,)
@@ -117,8 +120,10 @@ class Journal:
                 raise ValueError("journal order/hash mismatch")
             data = json.loads(payload)
             actions = {a: Action(data["actions"][a]) for a in AGENTS}
-            expected = arena.step(actions)
-            if canonical(expected) != payload:
+            expected = arena.step(actions, data.get("consultations"))
+            replay_data = dict(data)
+            replay_data.pop("model_calls", None)  # provider logs are observations, not referee authority
+            if canonical(expected) != canonical(replay_data):
                 raise ValueError("recorded transition violates referee replay")
             saved_transfers = [dict(zip(("from", "to", "amount", "kind"), t)) for t in self.db.execute(
                 "SELECT source, destination, amount, kind FROM transfers WHERE run_id=? AND tick=? ORDER BY seq", (run_id, tick))]
@@ -126,11 +131,17 @@ class Journal:
                 raise ValueError("transaction ledger disagrees with recorded world")
             if expected["entered"]:
                 entered += 1
-                for a in AGENTS:
-                    correct[a] += int(expected["scores"][a] == expected["optimal_score"])
+            for a in AGENTS:
+                attempts[a] += int(expected["attempted"][a])
+                correct[a] += int(expected["attempted"][a] and expected["scores"][a] == expected["optimal_score"])
+                earned[a] += expected["rewards"][a]
+                consultations[a] += expected["consultations"][a]
             if expected["winner"]:
                 wins[expected["winner"]] += 1
             n += 1
             prev = event_hash
         return {"run_id": run_id, "rounds": n, "head": prev, "balances": arena.balances,
-                "wins": wins, "correct": correct, "entered": entered, "verified": True}
+                "wins": wins, "correct": correct, "attempts": attempts,
+                "earned": earned, "consultations": consultations,
+                "alive": {a: arena.balances[a] > 0 for a in AGENTS},
+                "entered": entered, "verified": True}
