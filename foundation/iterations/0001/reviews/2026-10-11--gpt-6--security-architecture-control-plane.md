@@ -148,7 +148,7 @@ This scenario is **ruled out** if the finalized contract proves purchases cannot
 | Scientific reproducibility (10%) | **2/5** | Seeds, hashes and logs help (§8), but order/timeout rules and an external-output-capture strategy are not nailed down (F05). |
 | Evolvability / generality (5%) | **2/5** | Mutable soul/module route exists (§7); two non-reproducing agents and one duel do not yet demonstrate lineages or transferable generality (F07). |
 
-**Weighted overall: 46/100** = 12 + 12 + 8 + 6 + 4 + 4 + 2. Qualitative documentation score only; **blockers override numeric ratings**. No empirical measurements or inference of emergent intelligence are implied. These scores are not averaged with previous reviewers' scores.
+**Weighted overall: 48/100** = 12 + 12 + 8 + 6 + 4 + 4 + 2. Qualitative documentation score only; **blockers override numeric ratings**. No empirical measurements or inference of emergent intelligence are implied. These scores are not averaged with previous reviewers' scores.
 
 ## Related PRs, contradictions, and provenance cautions
 
