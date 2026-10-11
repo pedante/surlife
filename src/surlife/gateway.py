@@ -41,6 +41,46 @@ ACTION_SCHEMA = {
 }
 
 
+REFLECTION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "surlife_reflection",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "soul_update": {
+                    "type": "string",
+                    "description": "One reusable decision heuristic, 1-120 characters; empty if no lesson",
+                },
+            },
+            "required": ["soul_update"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def parse_reflection(content: str, actual_model: str, usage: dict) -> Reply:
+    """Parse a data-only reflection with no task action or executable output."""
+    if not isinstance(content, str) or len(content) > 4096:
+        raise GatewayError("non-text or oversized reflection", "invalid_content")
+    data_text = content.strip()
+    if data_text.startswith("```"):
+        data_text = data_text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    start = data_text.find("{")
+    if start < 0:
+        raise GatewayError("reflection returned no JSON", "invalid_json")
+    try:
+        data, _ = json.JSONDecoder().raw_decode(data_text[start:])
+    except (ValueError, TypeError):
+        raise GatewayError("reflection returned invalid JSON", "invalid_json") from None
+    if not isinstance(data, dict) or not isinstance(data.get("soul_update"), str):
+        raise GatewayError("reflection missing soul_update", "missing_reflection")
+    return Reply(mask=None, soul_update=data["soul_update"][:120],
+                 model=actual_model[:160], usage=normalized_usage(usage) or normalized_usage({}))
+
+
 class GatewayError(Exception):
     """Structured safe diagnostics. Never include provider body, prompt or API key."""
 
@@ -166,7 +206,9 @@ class OpenRouterGateway:
         except (ValueError, TypeError) as e:
             raise GatewayError("invalid provider response JSON", "invalid_provider_json") from e
 
-    def ask(self, messages: list[dict]) -> Reply:
+    def ask(self, messages: list[dict], *, mode: str = "action") -> Reply:
+        if mode not in ("action", "reflection"):
+            raise ValueError("invalid model consultation mode")
         if not self.remaining:
             raise GatewayError("per-run request cap reached")
         api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
@@ -179,7 +221,7 @@ class OpenRouterGateway:
         }
         # Prefer a concise answer over spending the entire completion budget
         # on hidden reasoning. Availability/behavior varies by free model.
-        payload["response_format"] = ACTION_SCHEMA
+        payload["response_format"] = ACTION_SCHEMA if mode == "action" else REFLECTION_SCHEMA
         payload["provider"] = {"require_parameters": True}
         if self.reasoning == "off":
             payload["reasoning"] = {"enabled": False}
@@ -221,7 +263,8 @@ class OpenRouterGateway:
                 )
             actual_model = str(raw.get("model") or self.model)[:160]
             try:
-                return parse_answer(content, actual_model, raw.get("usage") or {})
+                parser = parse_answer if mode == "action" else parse_reflection
+                return parser(content, actual_model, raw.get("usage") or {})
             except GatewayError as exc:
                 # The provider may have charged tokens even when its text was unusable.
                 exc.model = actual_model
@@ -253,6 +296,11 @@ class FakeGateway(OpenRouterGateway):
             raise GatewayError("per-run request cap reached")
         self.calls += 1
         payload = json.loads(messages[-1]["content"])
+        if mode == "reflection":
+            return Reply(mask=None,
+                         soul_update="Check selected costs against capacity before submitting any subset.",
+                         model="surlife/fake-model",
+                         usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
         items, capacity = payload["task"]["items"], payload["task"]["capacity"]
         mask = 0
         for i, (cost, _) in enumerate(items):
