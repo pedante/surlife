@@ -22,6 +22,8 @@ class GatewayError(Exception):
     def __init__(self, message: str, reason: str = "gateway_error") -> None:
         super().__init__(message)
         self.reason = reason
+        self.model: str | None = None
+        self.usage: dict[str, int | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,16 @@ def require_free_model(model: str) -> None:
         raise ValueError("M1 only accepts openrouter/free or a pinned :free model; paid models disabled")
     if any(c.isspace() for c in model) or len(model) > 140:
         raise ValueError("invalid model identifier")
+
+
+def normalized_usage(usage: object) -> dict[str, int | None] | None:
+    if not isinstance(usage, dict):
+        return None
+    result = {}
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        v = usage.get(key)
+        result[key] = v if type(v) is int and v >= 0 else None
+    return result
 
 
 def parse_answer(content: str, actual_model: str, usage: dict) -> Reply:
@@ -67,11 +79,8 @@ def parse_answer(content: str, actual_model: str, usage: dict) -> Reply:
     if not isinstance(update, str):
         update = ""
     update = update.strip().replace("\n", " ")[:120]
-    metric = {}
-    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
-        v = usage.get(key) if isinstance(usage, dict) else None
-        metric[key] = v if type(v) is int and v >= 0 else None
-    return Reply(mask=mask, soul_update=update, model=actual_model[:160], usage=metric)
+    return Reply(mask=mask, soul_update=update, model=actual_model[:160],
+                 usage=normalized_usage(usage) or normalized_usage({}))
 
 
 def provider_error_reason(error: object, prefix: str) -> str:
@@ -167,7 +176,14 @@ class OpenRouterGateway:
                     part["text"] for part in content if isinstance(part, dict)
                     and part.get("type") == "text" and isinstance(part.get("text"), str)
                 )
-            return parse_answer(content, str(raw.get("model") or self.model), raw.get("usage") or {})
+            actual_model = str(raw.get("model") or self.model)[:160]
+            try:
+                return parse_answer(content, actual_model, raw.get("usage") or {})
+            except GatewayError as exc:
+                # The provider may have charged tokens even when its text was unusable.
+                exc.model = actual_model
+                exc.usage = normalized_usage(raw.get("usage"))
+                raise
         except GatewayError:
             raise
         except (KeyError, TypeError, IndexError) as e:
