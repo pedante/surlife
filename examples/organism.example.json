@@ -1,0 +1,21 @@
+{
+  "_note": "Illustrative manifest only; not a validated implementation schema.",
+  "schema_version": "proposal-0.1",
+  "organism_id": "agent-001",
+  "generation": 0,
+  "parents": [],
+  "birth_tick": 0,
+  "status": "alive",
+  "age_ticks": 0,
+  "health_stage": "healthy",
+  "balance_energy": 500,
+  "soul_path": "soul.md",
+  "strategy_entry": "genome/strategy.py",
+  "genome_version": "v1",
+  "memory_path": "memory/",
+  "runbooks_path": "runbooks/",
+  "public_modules": ["genome/strategy.py"],
+  "private_modules": [],
+  "model_access": "gateway-only",
+  "maximum_per_call_tokens": 1024
+}

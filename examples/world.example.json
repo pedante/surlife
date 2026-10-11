@@ -1,0 +1,21 @@
+{
+  "_note": "Illustrative rules; balances and prices are not calibrated.",
+  "schema_version": "proposal-0.1",
+  "world_seed": 1234,
+  "maximum_agents": 4,
+  "maximum_ticks": 100,
+  "starting_energy": 500,
+  "maintenance_energy_per_tick": 2,
+  "resource_regeneration_energy_per_tick": 10,
+  "match_stake_energy": 30,
+  "default_weather": "normal",
+  "weather_states": ["normal", "drought", "fog"],
+  "allowed_environment_effects": ["drought", "fog"],
+  "environment_change_cost_energy": 60,
+  "maximum_environment_duration_ticks": 2,
+  "allow_code_mutation": false,
+  "allow_prompt_mutation": true,
+  "allow_reproduction": false,
+  "real_spend_limit_eur": 5.0,
+  "model_token_limit_per_agent_call": 1024
+}

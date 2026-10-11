@@ -1,0 +1,13 @@
+{
+  "_note": "Illustrative structured intent; not an executable shell command.",
+  "organism_id": "agent-001",
+  "tick": 7,
+  "action": "environment_intervention",
+  "parameters": {
+    "effect": "fog",
+    "region": "global",
+    "duration_ticks": 1
+  },
+  "max_cost_energy": 60,
+  "intent_id": "agent-001-tick-7-01"
+}
