@@ -13,7 +13,32 @@ from dataclasses import dataclass
 from typing import Callable
 
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "openrouter/free"
+DEFAULT_MODEL = "qwen/qwen3.8-27b:free"
+
+# Use an endpoint that can return the organism's tiny JSON action. The
+# free router may otherwise select moderation, embedding or reranking models.
+ACTION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "surlife_action",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "mask": {
+                    "type": ["integer", "null"],
+                    "description": "Item selection bitmask 0 to 31, or null to wait",
+                },
+                "soul_update": {
+                    "type": "string",
+                    "description": "A short optional personal strategy note, empty if none",
+                },
+            },
+            "required": ["mask", "soul_update"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 
 class GatewayError(Exception):
@@ -154,6 +179,8 @@ class OpenRouterGateway:
         }
         # Prefer a concise answer over spending the entire completion budget
         # on hidden reasoning. Availability/behavior varies by free model.
+        payload["response_format"] = ACTION_SCHEMA
+        payload["provider"] = {"require_parameters": True}
         if self.reasoning == "off":
             payload["reasoning"] = {"enabled": False}
         elif self.reasoning == "low":
@@ -170,6 +197,11 @@ class OpenRouterGateway:
             if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
                 raise GatewayError("OpenRouter returned no completion choice", "missing_choice")
             choice = choices[0]
+            # A router may still send a request to a model unsuitable for
+            # general instruction following. Reject the action as unsupported.
+            served = str(raw.get("model") or self.model).lower()
+            if any(token in served for token in ("content-safety", "rerank", "embedding", "/embed-")):
+                raise GatewayError("routed endpoint is not a chat action model", "unsuitable_model")
             if choice.get("finish_reason") == "error" or choice.get("error"):
                 reason = provider_error_reason(choice.get("error"), "completion_error")
                 raise GatewayError("OpenRouter reported an interrupted completion", reason)
