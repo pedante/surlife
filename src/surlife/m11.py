@@ -29,6 +29,12 @@ def task_fingerprint(task: dict) -> str:
     return hashlib.sha256(json.dumps(task, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+def task_history_digest(seen: list[str], complete: bool) -> str:
+    payload = json.dumps({"seen_task_hashes": seen, "history_complete": complete},
+                         sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 @dataclass
 class EvolutionSoul(Soul):
     pending: list[dict] = field(default_factory=list)
@@ -47,6 +53,21 @@ class EvolutionSoul(Soul):
                 or any(not isinstance(x, str) or not re.fullmatch(r"[0-9a-f]{64}", x) for x in seen)
                 or type(complete) is not bool):
             raise ValueError("invalid seen-task history")
+        checksum = content.get("task_history_sha256")
+        if checksum is not None and checksum != task_history_digest(seen, complete):
+            raise ValueError("task-history checksum mismatch")
+        if complete and checksum is None:
+            # Missing checksum means an imported legacy lineage; never make
+            # an unearned complete-history claim for contamination checks.
+            complete = False
+        if complete:
+            remembered = {
+                task_fingerprint({"items": entry["items"], "capacity": entry["capacity"]})
+                for entry in content.get("memory", [])
+                if isinstance(entry, dict) and "items" in entry and "capacity" in entry
+            }
+            if not remembered.issubset(set(seen)):
+                raise ValueError("task-history missing remembered tasks")
         history = content.get("evaluation_history", [])
         if not isinstance(pending, list) or len(pending) > MAX_PENDING:
             raise ValueError("invalid pending revisions")
@@ -73,6 +94,7 @@ class EvolutionSoul(Soul):
             "memory": self.memory, "revisions": self.revisions,
             "pending": self.pending, "evaluation_history": self.evaluation_history,
             "seen_task_hashes": self.seen_task_hashes, "history_complete": self.history_complete,
+            "task_history_sha256": task_history_digest(self.seen_task_hashes, self.history_complete),
         }
         with temp.open("w", encoding="utf-8") as fp:
             json.dump(data, fp, sort_keys=True, indent=2)
