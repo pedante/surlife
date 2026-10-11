@@ -177,6 +177,7 @@ def _gateway(args):
 def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[dict]:
     arena = BenchmarkArena(seed, cases)
     records = []
+    rate_limited = False
     for _ in cases:
         obs = arena.observations()
         act_b = (POLICIES["greedy"](obs["b"], Random(0))
@@ -197,8 +198,10 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
             info["source"] = "unpriced_polynomial_dp"
         elif name == "llm":
             act_a = POLICIES["greedy"](obs["a"], Random(0))
-            info["source"] = "greedy_no_inference"
-            if _should_call(arena, obs["a"], args.cognition, gateway.remaining):
+            info["source"] = "greedy_rate_limited" if rate_limited else "greedy_no_inference"
+            if not rate_limited and _should_call(
+                arena, obs["a"], args.cognition, gateway.remaining
+            ):
                 prior = gateway.calls
                 try:
                     reply = gateway.ask(_prompt(obs["a"]), mode="benchmark",
@@ -218,6 +221,11 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
                         "model": reply.model, "usage": reply.usage,
                     })
                 except GatewayError as exc:
+                    # HTTP 429 may be a short-window, daily, or upstream quota.
+                    # Stop all further calls in this run rather than wasting
+                    # requests. Do not guess when the provider will reset.
+                    if exc.reason == "http_429":
+                        rate_limited = True
                     info.update({
                         "source": "greedy_provider_fallback", "status": "failed",
                         "failure_reason": exc.reason,
@@ -287,6 +295,10 @@ def _summarize(manifest: dict, arms: dict[str, list[dict]]) -> dict:
             "consultations": len(charged),
             "model_actions": len(model_records),
             "provider_failures": len(failures),
+            "rate_limited_skips": sum(
+                r.get("benchmark", {}).get("source") == "greedy_rate_limited"
+                for r in records
+            ),
             "reported_tokens": tokens,
             "unknown_usage_requests": unknown_usage,
         }
