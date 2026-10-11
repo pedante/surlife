@@ -218,3 +218,31 @@ def test_m14_missing_google_key_rejects_before_file_creation(tmp_path, monkeypat
     with pytest.raises(ValueError, match="GOOGLE_API_KEY"):
         run_m14(arguments(tmp_path))
     assert not (tmp_path / "google.json").exists()
+
+
+
+def test_actual_google_sdk_wiring_is_stateless_v1_and_closes(monkeypatch):
+    genai = pytest.importorskip("google.genai")
+    import surlife.gemini_gateway as adapter
+    calls = {}
+    class ClientStub:
+        def __init__(self, api_key=None, http_options=None):
+            calls["client_key"] = api_key
+            calls["http_options"] = http_options
+            self.interactions = SimpleNamespace(create=self.create)
+        def create(self, **kwargs):
+            calls["body"] = kwargs
+            return answer()
+        def close(self):
+            calls["closed"] = True
+    monkeypatch.setattr(genai, "Client", ClientStub)
+    monkeypatch.setenv("GOOGLE_API_KEY", "DUMMY")
+    gateway = adapter.GeminiGateway(max_requests=1)
+    reply = gateway.ask([{"role": "user", "content": "{}"}],
+                        mode="benchmark", benchmark_items=12)
+    assert reply.mask == 257
+    assert calls["client_key"] == "DUMMY"
+    assert calls["http_options"] == {"api_version": "v1"}
+    assert calls["body"]["store"] is False
+    assert calls["closed"] is True
+    assert "tools" not in calls["body"]
