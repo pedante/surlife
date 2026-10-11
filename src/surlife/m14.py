@@ -383,9 +383,17 @@ def run_m14(args) -> dict:
         finally:
             if temp.exists():
                 temp.unlink()
+    # Diagnostic convenience in the terminal response. This does NOT change
+    # the versioned benchmark report, old hashes, or offline replay contract.
+    failure_reasons: dict[str, int] = {}
+    for entry in arms.get("llm", []):
+        reason = entry.get("benchmark", {}).get("failure_reason")
+        if isinstance(reason, str):
+            failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
     return {
         "manifest": manifest, "summary": summary, "head": report["head"],
         "verified": True, "report_path": filename,
+        "failure_reasons": failure_reasons,
     }
 
 
