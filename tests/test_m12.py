@@ -167,6 +167,8 @@ def test_real_provider_failure_keeps_pending_for_new_seed(tmp_path, monkeypatch)
     result = evaluate_snapshot_v2(options(tmp_path, evaluate_soul=str(snap)))
     assert result["evaluation"]["decision"] == "aborted"
     assert result["evaluation"]["requests"] == 1
+    assert result["evaluation"]["unknown_usage_requests"] == 1
+    assert result["evaluation"]["routed_models"] == {"unknown": 1}
     assert result["pending_revisions"] == 1
     assert result["soul_version"] == 0
     assert result["evaluation"]["failure"]["reason"] == "network_failure"
@@ -317,6 +319,8 @@ def test_model_switch_mid_evaluation_aborts_without_adoption(tmp_path, monkeypat
         tmp_path, evaluate_soul=str(snap), provider="openrouter",
     ))
     assert result["evaluation"]["failure"]["reason"] == "routed_model_mismatch"
+    assert result["evaluation"]["reported_tokens"]["total_tokens"] == 15
+    assert result["evaluation"]["routed_models"] == {"unrelated/free-model:free": 1}
     assert result["evaluation"]["requests"] == 1
     assert result["evaluation"]["decision"] == "aborted"
     assert result["pending_revisions"] == 1
