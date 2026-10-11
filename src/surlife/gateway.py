@@ -102,12 +102,16 @@ class OpenRouterGateway:
         max_requests: int = 6,
         max_output_tokens: int = 512,
         transport: Callable[[dict, str, int], dict] | None = None,
+        reasoning: str = "off",
     ):
         require_free_model(model)
         if type(max_requests) is not int or max_requests < 1:
             raise ValueError("max_requests must be positive")
         if type(max_output_tokens) is not int or not 16 <= max_output_tokens <= 1024:
             raise ValueError("max_output_tokens must be between 16 and 1024")
+        if reasoning not in ("off", "low", "auto"):
+            raise ValueError("reasoning must be off, low or auto")
+        self.reasoning = reasoning
         self.model, self.limit, self.calls = model, max_requests, 0
         self.max_output_tokens = max_output_tokens
         self.transport = transport or self._http
@@ -148,6 +152,13 @@ class OpenRouterGateway:
             "model": self.model, "messages": messages, "temperature": 0,
             "max_completion_tokens": self.max_output_tokens, "stream": False,
         }
+        # Prefer a concise answer over spending the entire completion budget
+        # on hidden reasoning. Availability/behavior varies by free model.
+        if self.reasoning == "off":
+            payload["reasoning"] = {"enabled": False}
+        elif self.reasoning == "low":
+            payload["reasoning"] = {"effort": "low"}
+        raw = None
         try:
             raw = self.transport(payload, api_key, 30)
             if not isinstance(raw, dict):
@@ -184,7 +195,16 @@ class OpenRouterGateway:
                 exc.model = actual_model
                 exc.usage = normalized_usage(raw.get("usage"))
                 raise
-        except GatewayError:
+        except GatewayError as exc:
+            # Even a completion rejected as truncated may include a model ID
+            # and usage. Neither is trusted authority and no raw text is logged.
+            if isinstance(raw, dict):
+                if exc.model is None:
+                    model = raw.get("model")
+                    if isinstance(model, str):
+                        exc.model = model[:160]
+                if exc.usage is None:
+                    exc.usage = normalized_usage(raw.get("usage"))
             raise
         except (KeyError, TypeError, IndexError) as e:
             raise GatewayError("missing or malformed provider response", "invalid_response") from e
