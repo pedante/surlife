@@ -40,6 +40,7 @@ def test_constructed_headroom_is_real_and_not_random_scoring_luck():
         assert c["gap"] > 0
         assert c["gap"] / c["oracle_score"] >= .12
         assert c["task"].score(c["oracle_mask"]) == c["oracle_score"]
+        assert c["task"].score(c["dp_mask"]) == c["oracle_score"]
         assert c["task"].score(c["greedy_mask"]) == c["greedy_score"]
 
 
@@ -52,6 +53,7 @@ def test_exact_oracle_is_reproducible_with_more_than_five_items(items):
         greedy = POLICIES["greedy"](obs, Random(0))
         assert task.score(greedy.mask) < task.optimum
         assert task.score(case["oracle_mask"]) == task.optimum
+        assert task.score(case["dp_mask"]) == task.optimum
         assert task.score(1 << items) == -1
 
 
@@ -65,14 +67,16 @@ def test_standalone_fake_run_has_real_headroom_and_verified_audit(tmp_path):
     assert summary["summary"]["headroom"]["positive_gap_cases"] >= 6
     assert summary["summary"]["headroom"]["greedy_gap"] > 0
     arms = summary["summary"]["arms"]
-    assert set(arms) == {"greedy", "oracle", "llm"}
-    assert arms["greedy"]["consultations"] == arms["oracle"]["consultations"] == 0
+    assert set(arms) == {"greedy", "dp", "oracle", "llm"}
+    assert arms["greedy"]["consultations"] == arms["dp"]["consultations"] == arms["oracle"]["consultations"] == 0
     assert arms["llm"]["consultations"] == 4
     assert arms["llm"]["model_actions"] == 4
     assert arms["llm"]["provider_failures"] == 0
     assert arms["llm"]["reported_tokens"]["total_tokens"] == 0
     assert arms["llm"]["energy_delta_vs_no_inference"] <= 0
-    assert arms["oracle"]["task_score_sum"] >= arms["greedy"]["task_score_sum"]
+    assert arms["oracle"]["task_score_sum"] == arms["dp"]["task_score_sum"]
+    assert arms["dp"]["task_score_sum"] >= arms["greedy"]["task_score_sum"]
+    assert summary["summary"]["headroom"]["dp_total"] == summary["summary"]["headroom"]["oracle_total"]
     assert verify_report_file(args.benchmark_out)["head"] == summary["head"]
 
 
@@ -90,7 +94,7 @@ def test_greedy_only_benchmark_does_not_open_gateway(tmp_path, monkeypatch):
     monkeypatch.setattr(m14, "_gateway", lambda _: (_ for _ in ()).throw(
         AssertionError("unexpected real gateway")))
     result = run_m14(opts(tmp_path, a="greedy", provider="openrouter"))
-    assert set(result["summary"]["arms"]) == {"greedy", "oracle"}
+    assert set(result["summary"]["arms"]) == {"greedy", "dp", "oracle"}
     assert result["summary"]["arms"]["greedy"]["energy_delta_vs_no_inference"] == 0
 
 
@@ -247,3 +251,17 @@ def test_unexpected_served_model_is_charged_and_excluded_from_model_actions(tmp_
     assert fail["benchmark"]["failure_reason"] == "routed_model_mismatch"
     assert fail["scores"]["a"] == fail["benchmark"]["greedy_score"]
     assert verify_report(saved)["verified"]
+
+
+
+def test_dp_baseline_also_replays_and_detects_tampering(tmp_path):
+    run_m14(opts(tmp_path))
+    record = json.loads((tmp_path / "m14.json").read_text())
+    assert record["summary"]["arms"]["dp"]["task_score_sum"] == (
+        record["summary"]["arms"]["oracle"]["task_score_sum"]
+    )
+    assert record["summary"]["arms"]["dp"]["consultations"] == 0
+    wrong = copy.deepcopy(record)
+    wrong["arms"]["dp"][0]["actions"]["a"] = 0
+    with pytest.raises(ValueError, match="transition mismatch|DP baseline deviated"):
+        verify_report(wrong)
