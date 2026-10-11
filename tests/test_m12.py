@@ -223,6 +223,7 @@ def test_legacy_snapshot_without_provenance_fails_closed(tmp_path):
     data = json.loads(snap.read_text())
     data.pop("seen_task_hashes")
     data.pop("history_complete")
+    data.pop("task_history_sha256")
     snap.write_text(json.dumps(data))
     with pytest.raises(ValueError, match="complete task fingerprints"):
         evaluate_snapshot_v2(options(tmp_path, evaluate_soul=str(snap)))
@@ -259,3 +260,63 @@ def test_no_posthoc_prompt_history_rewrite_after_rejection(tmp_path):
     assert soul.sha256 == old
     assert soul.version == 0
     assert soul.evaluation_history[-1]["decision"] == "rejected"
+
+
+
+def test_task_history_checksum_detects_accidental_edit(tmp_path):
+    snap = _snapshot(tmp_path)
+    original = json.loads(snap.read_text())
+    original["seen_task_hashes"].clear()
+    snap.write_text(json.dumps(original))
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        EvolutionSoul.restore("a", str(snap))
+
+
+def test_history_marked_incomplete_when_checksum_absent(tmp_path):
+    snap = _snapshot(tmp_path)
+    content = json.loads(snap.read_text())
+    content.pop("task_history_sha256")
+    snap.write_text(json.dumps(content))
+    restored = EvolutionSoul.restore("a", str(snap))
+    assert not restored.history_complete
+    with pytest.raises(ValueError, match="complete task fingerprints"):
+        evaluate_snapshot_v2(options(tmp_path, evaluate_soul=str(snap)))
+
+
+def test_random_router_disallowed_before_provider_calls(tmp_path, monkeypatch):
+    snap = _snapshot(tmp_path)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "DUMMY")
+    import surlife.evaluation_v2 as evaluator
+    def forbidden(_model):
+        raise AssertionError("catalog should not have been queried")
+    monkeypatch.setattr(evaluator, "check_model", forbidden)
+    with pytest.raises(ValueError, match="pinned"):
+        evaluate_snapshot_v2(options(
+            tmp_path, evaluate_soul=str(snap), provider="openrouter",
+            model="openrouter/free",
+        ))
+    assert EvolutionSoul.restore("a", str(snap)).pending
+
+
+def test_model_switch_mid_evaluation_aborts_without_adoption(tmp_path, monkeypatch):
+    import surlife.evaluation_v2 as evaluator
+    snap = _snapshot(tmp_path)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "DUMMY")
+    monkeypatch.setattr(evaluator, "check_model", lambda _: None)
+    class Switched:
+        def __init__(self, model, max_requests, max_output_tokens, reasoning):
+            self.calls = 0
+            self.model = model
+        def ask(self, messages):
+            self.calls += 1
+            return Reply(1, "", "unrelated/free-model:free", {
+                "prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15,
+            })
+    monkeypatch.setattr(evaluator, "OpenRouterGateway", Switched)
+    result = evaluate_snapshot_v2(options(
+        tmp_path, evaluate_soul=str(snap), provider="openrouter",
+    ))
+    assert result["evaluation"]["failure"]["reason"] == "routed_model_mismatch"
+    assert result["evaluation"]["requests"] == 1
+    assert result["evaluation"]["decision"] == "aborted"
+    assert result["pending_revisions"] == 1
