@@ -7,6 +7,8 @@ from .gateway import (ACTION_SCHEMA, REFLECTION_SCHEMA, GatewayError, Reply,
                       parse_answer, parse_benchmark_answer, parse_reflection)
 
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_DEFAULT_OUTPUT_TOKENS = 4096
+GEMINI_MAX_OUTPUT_TOKENS = 8192
 FREE_GEMINI_MODELS = frozenset({
     "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash-lite",
 })
@@ -72,11 +74,17 @@ def _prompt(messages: list[dict]) -> str:
 def _usage(interaction) -> dict:
     raw = getattr(interaction, "usage", None)
     getter = raw.get if isinstance(raw, dict) else lambda k: getattr(raw, k, None)
-    return normalized_usage({
+    metrics = normalized_usage({
         "prompt_tokens": getter("total_input_tokens"),
         "completion_tokens": getter("total_output_tokens"),
         "total_tokens": getter("total_tokens"),
     }) or {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
+    # Detailed thinking accounting is diagnostic, never used for model billing
+    # estimates. Persist only numeric counters, not thoughts or response text.
+    thought = getter("total_thought_tokens")
+    if type(thought) is int and thought >= 0:
+        metrics["thought_tokens"] = thought
+    return metrics
 
 
 def _reason(exc: Exception) -> str:
@@ -92,13 +100,14 @@ def _reason(exc: Exception) -> str:
 
 class GeminiGateway:
     def __init__(self, model: str = DEFAULT_GEMINI_MODEL,
-                 max_requests: int = 6, max_output_tokens: int = 512,
+                 max_requests: int = 6, max_output_tokens: int = GEMINI_DEFAULT_OUTPUT_TOKENS,
                  reasoning: str = "off", transport: Callable | None = None):
         check_gemini_model(model)
         if type(max_requests) is not int or max_requests < 1:
             raise ValueError("max_requests must be positive")
-        if type(max_output_tokens) is not int or not 16 <= max_output_tokens <= 1024:
-            raise ValueError("max_output_tokens must be 16..1024")
+        if (type(max_output_tokens) is not int
+                or not 16 <= max_output_tokens <= GEMINI_MAX_OUTPUT_TOKENS):
+            raise ValueError("Gemini max_output_tokens must be 16..8192 (includes thought tokens)")
         if reasoning not in ("off", "low", "auto"):
             raise ValueError("reasoning must be off, low or auto")
         if transport is None:
@@ -161,9 +170,23 @@ class GeminiGateway:
             err = GatewayError("Gemini served unexpected model", "routed_model_mismatch")
             err.model, err.usage = str(served)[:160], usage
             raise err
-        if getattr(interaction, "status", "completed") not in ("completed", None):
-            err = GatewayError("Gemini interaction incomplete", "incomplete_interaction")
+        status = getattr(interaction, "status", "completed")
+        if status not in ("completed", None):
+            err = GatewayError("Gemini interaction not completed", "incomplete_interaction")
             err.model, err.usage = self.model, usage
+            # Sanitized diagnostics only: no raw model output, thoughts, IDs,
+            # provider prose or API secrets. "incomplete" can be caused by
+            # running into max_output_tokens, which INCLUDES thinking tokens.
+            known_statuses = {
+                "incomplete", "in_progress", "queued", "failed",
+                "cancelled", "requires_action", "budget_exceeded",
+            }
+            err.generation_diagnostics = {
+                "status": status if status in known_statuses else "unknown",
+                "output_token_limit": self.max_output_tokens,
+                "reported_output_tokens": usage["completion_tokens"],
+                "reported_thought_tokens": usage.get("thought_tokens"),
+            }
             raise err
         content = getattr(interaction, "output_text", None)
         try:
