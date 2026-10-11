@@ -33,6 +33,17 @@ actions increase. Provider failures abort without discarding the pending
 proposal. See [M12.md](M12.md) for the command sequence and scientific
 limitations; the environment still does not execute model-generated code.
 
+## Constrained action menus (M1.3)
+
+**Opt-in:** `surlife --m13 --action-contract menu` exposes the complete set of
+cost-feasible action masks, without providing optimal rewards. A dynamic JSON
+schema encourages the LLM to select an admissible mask, but all answers are
+still referee-scored without silent correction. Use
+`--m13 --action-contract raw` for the unconstrained interface control.
+The original model scored illegally in all four LLM turns of a real M1.2
+experiment, so this stage tests environment affordances rather than claiming
+evolved intelligence. Read [M13.md](M13.md) for trials and limitations.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
