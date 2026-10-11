@@ -17,7 +17,7 @@ def main() -> None:
     parser.add_argument("--b", choices=sorted(POLICIES), default="optimal")
     parser.add_argument("--db", default="out/surlife.sqlite")
     parser.add_argument("--provider", choices=("fake", "openrouter"), default="fake")
-    parser.add_argument("--model", default="openrouter/free", help="openrouter/free or a pinned :free model")
+    parser.add_argument("--model", default="qwen/qwen3.8-27b:free", help="pinned general-chat :free model (recommended) or openrouter/free (random)")
     parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
     parser.add_argument("--max-output-tokens", type=int, default=512)
     parser.add_argument("--reasoning", choices=("off", "low", "auto"), default="off",
