@@ -21,7 +21,7 @@ This program runs two scripted organism policies over the same seeded knapsack p
 
 - Two policies (`a`, `b`) chosen from `random`, `greedy`, `optimal`, `wait`. They are trusted bundled functions, not generated organism code.
 - Each tick both see the same five-item task; choose a bitmask of items subject to capacity. A deterministic scorer evaluates the choice.
-- The world periodically mints energy and charges upkeep (normal=1, fog=2, drought=3). Both actors must have a valid entry and an equal stake; escrow transfers to the winning answer or is refunded for a tie. No negative player/escrow energy.
+- The world periodically mints energy and charges upkeep (normal=1, fog=2, drought=3). **Each living actor can earn independent work income** (3 for optimal, 2 for at least 80% of optimum, 1 for another valid positive solution), even if its opponent abstains or dies. A duel is optional: when both submit and can pay the stake, escrow transfers to the stronger answer or is refunded for a tie. A zero-energy actor is dead on future ticks; there is no passive resurrection. Calls to an M1 model cost 1 virtual energy per admitted call. No negative player/escrow energy.
 - SQLite saves each accepted round, its double-entry transfers and event hash in a **single transaction**. One run/tick key prevents duplicate settlement. Replay reconstructs the state from stored submitted actions.
 - Task and agent random streams are independent. No LLM, credentials, network, dynamic Python loading, mutable prompts, code mutation or reproductive evolution.
 
@@ -53,4 +53,6 @@ The system avoids importing mini-SWE, PettingZoo, LiteLLM and DEAP at once: none
 4. **M2 code mutation:** stage one candidate, validate exact immutable bytes, trial/rollback in a confined worker, charge model/code/trial costs, never import it into the referee. Later add PettingZoo/OpenSpiel comparison and DEAP inheritance.
 5. **Ecology expansion:** heterogeneous tasks, weather engineering, reproduction, age and social adaptation only after early scientific signals.
 
-**Research warning:** current `correct` counts are conditional on entering a match, not on all assigned tasks; future experiments must report assigned-task accuracy, abstentions, model tokens (including optimization), money, CPU, uncertainty and independent replication.
+**Research warning:** current `correct` counts include all **attempted** tasks, including solo tasks; future experiments must also report assigned-task accuracy, abstentions, model tokens (including optimization), money, CPU, uncertainty and independent replication.
+
+**M0-v2 update:** The original M0-v1 replay rules changed. Historical SQLite runs from M0-v1 are not replayable using M0-v2 code without the original version; preserve old logs and use a new database/run ID after upgrading. Task rewards are newly minted world energy, not player-to-player transfers, and are intentionally a tunable hypothesis pending calibration.
