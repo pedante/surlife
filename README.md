@@ -22,6 +22,17 @@ candidate prompts on matched held-out tasks before accepting any revision.
 cognition schedule, not yet an evolved metacognitive ability.
 See [M11.md](M11.md) for runnable commands, external request budgets and caveats.
 
+## Conservative evolution evaluations (M1.2)
+
+**Opt-in:** `surlife --m12` preserves the existing arena but logs a shadow
+Greedy score beside actual LLM actions, retains complete bounded puzzle
+fingerprints for holdout exclusion, and adds an explicit multi-cohort,
+strictly capped soul evaluation mode: `surlife --m12 --evaluate-soul ...`.
+A candidate is never accepted if any cohort regresses or its invalid
+actions increase. Provider failures abort without discarding the pending
+proposal. See [M12.md](M12.md) for the command sequence and scientific
+limitations; the environment still does not execute model-generated code.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
