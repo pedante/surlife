@@ -38,9 +38,15 @@ def run_m1(args, db_path: Path) -> dict:
     root = Path(args.souls_dir) / run_id
     if root.exists():
         raise ValueError("souls directory exists; choose another run_id (M1 resume not yet implemented)")
-    souls = {
-        a: Soul.new(a, getattr(args, "soul_" + a)) for a in AGENTS if policies[a] == "llm"
-    }
+    souls = {}
+    for a in AGENTS:
+        if policies[a] != "llm":
+            continue
+        previous = getattr(args, "inherit_soul_" + a, None)
+        initial = getattr(args, "soul_" + a, None)
+        if previous and initial:
+            raise ValueError("choose only one of --soul-" + a + " or --inherit-soul-" + a)
+        souls[a] = Soul.restore(a, previous) if previous else Soul.new(a, initial)
     arena = Arena(args.seed)
     manifest = {
         "rules": RULES_VERSION, "kind": "m1-prompt-souls",
