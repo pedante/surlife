@@ -48,8 +48,9 @@ evolved intelligence. Read [M13.md](M13.md) for trials and limitations.
 
 **Opt-in:** `surlife --m14` generates larger deterministic puzzle families
 with measurable Greedy-vs-optimal headroom, then settles identical tasks
-under the existing referee in parallel no-inference Greedy, unpriced oracle
-and optionally bounded LLM arms. The benchmark has a separate JSON audit
+under the existing referee in parallel no-inference Greedy, classical
+dynamic-programming solver, unpriced brute-force oracle, and optionally bounded
+LLM arms. The benchmark has a separate JSON audit
 with offline `--verify-benchmark-file` replay, not the historical SQLite
 journal. A positive model score does not prove survival advantage after
 consultation costs. See [M14.md](M14.md) for the experiment protocol,
