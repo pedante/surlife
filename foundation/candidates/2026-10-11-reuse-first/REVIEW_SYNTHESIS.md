@@ -30,10 +30,10 @@ The reviewers address different risks and have different access. Cross-review re
 | **True cost boundaries** | All support non-organism-controlled provider limits; RV2 additionally asks whether the ecology's costs select anything meaningful. | RV1 §3.A; RV2-F04/F05/F06; RV3-B02/F06 | Pre-call M reservations, uncertain-usage reconciliation, and separate E / tokens / real money / CPU records. |
 | **Staged validation** | All discuss incremental tests, but RV1 prioritizes a four-framework stack plus 100-agent tests while RV2/RV3 prioritize no-cost calibration. | RV1 §8; RV2-F06/F10; RV3-F01/F09 | Begin with scripted two-agent scientific/authority tests, then scale if justified. |
 | **Mini-SWE not a proven M1 fit** | All question whether a shell-oriented coding agent is right for a constrained world action. | RV1 §2.3; RV2-F07 (architectural autonomy); RV3-F01 | Benchmark restricted mini-SWE against a native runner, preserving optional isolated M2 coder. |
-| **Benchmark and replay validity** | All value tests/traceability, though RV2 distinguishes technical replay from scientific causal validity. | RV1 §§2.7/6; RV2-F02/F03/F05; RV3-F07/T04/T09/T14 | Pair deterministic reducer tests with separate sealed behavioral/selection evaluation. |
+| **Benchmark and replay validity** | All address reproducibility, but RV1 incorrectly assumes identical fresh LLM outputs are necessary to replay; RV2 distinguishes technical replay from scientific causal validity. | RV1 §2.8; RV2-F02/F03/F05; RV3-F07/T04/T09/T14 | Pair deterministic reducer tests with separate sealed behavioral/selection evaluation. |
 | **Future evolution matters** | The system must grow beyond two static prompts without losing protected authority. | RV1 §2.4; RV2-F01/F07/F08; RV3-F04/F12 | Versioned capability/genome envelopes; no commitment to a fixed internal agent architecture. |
 
-**Important non-consensus:** the choice of PettingZoo as the *primary* world, PostgreSQL on day one, Wasm as isolation technology, or GEPA as a committed dependency is **not agreed by all three**.
+**Important non-consensus:** RV1 alone insists on PettingZoo as *replacement* for the referee, a LiteLLM proxy, mandatory gVisor, DEAP from the outset, and JSONL/DuckDB event authority. RV2 prioritizes scientific validity; RV3 insists on a small trusted reducer and evidence-gated optional adapters. None of these RV1-specific purchases has been benchmarked in Surlife.
 
 ## 2. Where they differ—and how to resolve the disagreements
 
@@ -51,6 +51,14 @@ The reviewers address different risks and have different access. Cross-review re
 | **Scoring outcome** | Agent-stack 61, proposed PettingZoo stack 88; **R1 0** based on a disputed claimed exploit | R1 57; staged instrument 76 | R1 80.3; thin-waist 89.0 | **Do not average.** Different criteria, unsupported claims and untested dependencies. |
 
 A false choice to avoid: “use existing code” versus “build everything.” **Buy proven generic machinery, write unique world laws, borrow only permitted patterns, adapt specialized tools through small replaceable boundaries.** Treat total maintained adapter code, dependency upgrades, security/trust surface and reproducible scientific usefulness—not raw lines reused—as the measure.
+
+### Critical evaluation of the replacement proposal from Reviewer 1
+
+A serious security warning is **not** the same thing as evidence of an exploitable system. R1 §§2, 4, 6, 9 already ban credentials and host/referee authority in organism workers, forbid unreviewed Docker/local isolation for hostile code, and require host-side budget reservations. The full new RV1 describes a generic unsafe mini-SWE deployment—not the stipulated R1 architecture—as if it were implemented. Its **0/100** score for R1 is therefore unreliable, although ignoring those boundaries during implementation would indeed be a blocker.
+
+PettingZoo `ParallelEnv` is useful multi-agent interoperability but does not implement escrow, source-of-truth ledger transactions, secure visibility or deterministic event recovery, and its “parallel” interface is **not** a concurrent scheduler. SQLite WAL admits one writer and many readers; at the intended two-agent serialized scale this is compatible with atomic settlement. A distinct authoritative JSONL append introduces crash inconsistency unless it is derived from committed SQLite transactions. DEAP provides mutation/selection operators, not Surlife fitness or secure lineage. LiteLLM and gVisor are *possible* implementations of particular layers, not automatically verified spending and sandbox guarantees. Seeds alone also do not make external LLM outputs reproducible: replay must use recorded outputs.
+
+**Adopt:** no-secret/no-network generated-code worker fixtures, CPU/RAM/time/process/output quotas, authentication/idempotency against forged intents, and measured compatibility/startup performance. **Reject or defer:** mandatory four-framework stack and “replace referee” claim, arbitrary 100-agent scaling gate, moving the event authority to JSONL, and unevidenced maintenance/compatibility absolutes. RV1 also identifies a branch name inconsistent with the real PR #4 head and requests edits to three filenames not present in PR #4; this limits its source-level reliability. Read the [separate full critical evaluation](REVIEWER_1_CRITICAL_EVALUATION.md), which attributes each objection and proposes falsifiable reversal evidence.
 
 ## 3. What the reviews show is already sound in R1
 
@@ -81,7 +89,7 @@ These are **proposed maintainer decisions**, not edits to R1 or the canonical pl
 | **S-08** | **Physically separate final sealed holdouts**; promoter uses fresh paired seeds with error-rate discipline and null/known-bad/known-good spike-ins; no answer-revealing feedback. | RV2-F02/F03; RV3-B04/T10 | Blocker for scientific promotion claims |
 | **S-09** | **Introduce real competing controls:** static, prompt, code, hybrid; plus expert prompt, random edit, shuffled feedback, test-time compute and neutral selection as phase appropriate. Pair tasks and compare real allowances. | RV2-F05/F06, RV3-F07/T14 | Recommend accept, stage arms within cost cap |
 | **S-10** | **GEPA offline and OpenSpiel benchmark are first optional reuse spikes**; Inspect AI only if research harness work measurably drops; DEAP/OpenEvolve at actual population scale. | RV3-F03/F07/F09, RV2-F03 | Conditional |
-| **S-11** | **Do not commit to PostgreSQL, vector DB, full nanobot/Letta service, full OpenEvolve, Mesa, LiteLLM, shell-capable mini-SWE or host-admin Descartes runtime in v0.** | RV1 §§2.6/2.7, RV3 component catalog/F09 | Defer on measured need |
+| **S-11** | **Do not commit to PostgreSQL, vector DB, full nanobot/Letta service, full OpenEvolve, Mesa, LiteLLM, shell-capable mini-SWE or host-admin Descartes runtime in v0.** | RV1 §§2.5–2.6/4, RV3 component catalog/F09 | Defer on measured need |
 | **S-12** | **A versioned flexible genome/capability manifest, not hardcoded speculative future Python subclass taxonomy.** Child forks must enforce ownership, new identities, explicit inherited blobs and lineage provenance. | RV2-F01/F07/F09, RV3-F04/F12 | Recommend accept |
 
 ### Reuse map—what to adopt, adapt, study, or leave for later
