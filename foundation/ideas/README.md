@@ -12,4 +12,8 @@ Every idea should include:
 - Status: proposed / deferred / testing / accepted / rejected
 - Related issues, sources and iterations
 
-The current proposal remains [../PLAN.md](../PLAN.md). See [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md).
+The current proposal remains [../PLAN.md](../PLAN.md). Proposed or deferred ideas:
+
+- [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md) — deferred lifetime, inheritance and social dynamics.
+- [0002 — Arena framework comparison](0002-arena-framework-comparison.md) — proposed minimal Python referee, optional PettingZoo adapter and OpenSpiel benchmark integration; includes falsifiable adoption tests.
+
