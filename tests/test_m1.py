@@ -154,3 +154,95 @@ def test_replay_with_llm_flags_cannot_trigger_live_provider(tmp_path, monkeypatc
     main()
     data = json.loads(capsys.readouterr().out)
     assert data["verified"] and data["rounds"] == 1
+
+
+
+def test_free_model_can_return_json_after_markdown_or_prose():
+    wrapped = 'Sure! Here is the move:\n```json\n{"mask": 6, "soul_update": "Watch capacity"}\n```'
+    assert parse_answer(wrapped, "test:free", {}).mask == 6
+    assert parse_answer('{"mask":0}', "test:free", {}).mask == 0
+
+
+@pytest.mark.parametrize(("reply", "expected_reason"), [
+    ({"error": {"code": 429, "message": "potentially unsafe body"}},
+     "provider_error_429"),
+    ({"choices": []}, "missing_choice"),
+    ({"choices": [{"finish_reason": "error", "error": {"code": 503}}]},
+     "completion_error_503"),
+    ({"choices": [{"finish_reason": "length", "message": {"content": '{"mask":0}'}}]},
+     "completion_truncated"),
+    ({"choices": [{"message": {"content": ""}}]}, "empty_content"),
+    ({"choices": [{"message": {"content": "not json"}}]}, "invalid_json"),
+    ({"choices": [{"message": {"content": '{"mask":true}'}}]}, "invalid_mask"),
+])
+def test_safe_provider_failure_categories(monkeypatch, reply, expected_reason):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "TOP_SECRET_TEST_KEY")
+    gateway = OpenRouterGateway(max_requests=1, transport=lambda *args: reply)
+    with pytest.raises(GatewayError) as exc_info:
+        gateway.ask([{"role": "user", "content": "one task"}])
+    assert exc_info.value.reason == expected_reason
+    assert "TOP_SECRET_TEST_KEY" not in str(exc_info.value)
+    assert gateway.calls == 1
+
+
+def test_http_429_is_classified_without_leaking_body(monkeypatch):
+    import io
+    import urllib.error
+    import surlife.gateway as gateway_module
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "TOP_SECRET_TEST_KEY")
+
+    def rate_limited(_request, timeout=30):
+        raise urllib.error.HTTPError(
+            "https://openrouter.ai/api/v1/chat/completions",
+            429, "rate limited TOP_SECRET_TEST_KEY", {}, io.BytesIO(b"PRIVATE BODY")
+        )
+
+    monkeypatch.setattr(gateway_module.urllib.request, "urlopen", rate_limited)
+    gateway = OpenRouterGateway(max_requests=1)
+    with pytest.raises(GatewayError) as exc_info:
+        gateway.ask([{"role": "user", "content": "task"}])
+    assert exc_info.value.reason == "http_429"
+    assert "TOP_SECRET_TEST_KEY" not in str(exc_info.value)
+    assert gateway.calls == 1
+
+
+def test_failed_json_still_carries_routed_model_and_usage(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "TOP_SECRET_TEST_KEY")
+    result = {
+        "model": "provider/actual-free-model",
+        "choices": [{"message": {"content": "I choose item 2."}}],
+        "usage": {"prompt_tokens": 210, "completion_tokens": 512, "total_tokens": 722},
+    }
+    gateway = OpenRouterGateway(max_requests=1, transport=lambda *_: result)
+    with pytest.raises(GatewayError) as exc_info:
+        gateway.ask([{"role": "user", "content": "task"}])
+    assert exc_info.value.reason == "invalid_json"
+    assert exc_info.value.model == "provider/actual-free-model"
+    assert exc_info.value.usage["total_tokens"] == 722
+
+
+def test_m1_journal_records_reason_without_provider_body(tmp_path, monkeypatch):
+    import surlife.runner as runner_module
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "TOP_SECRET_TEST_KEY")
+    response = {
+        "error": {"code": 503, "message": "TOP_SECRET_TEST_KEY: provider internal issue"}
+    }
+    def mocked_gateway(**settings):
+        return OpenRouterGateway(transport=lambda *_: response, **settings)
+
+    monkeypatch.setattr(runner_module, "OpenRouterGateway", mocked_gateway)
+    args = options(tmp_path, provider="openrouter", max_requests=2, ticks=4)
+    db_path = tmp_path / "world.sqlite"
+    result = run_m1(args, db_path)
+    assert result["failure_reasons"] == {"provider_error_503": 2}
+    assert result["consultations"]["a"] == 2
+    assert result["verified"]
+    with Journal(db_path) as journal:
+        first = journal.db.execute(
+            "SELECT payload FROM rounds WHERE run_id=? AND tick=0", ("test-1",)
+        ).fetchone()[0]
+    assert "provider_error_503" in first
+    assert "TOP_SECRET_TEST_KEY" not in first
+    assert "provider internal issue" not in first
