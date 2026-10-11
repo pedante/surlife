@@ -12,4 +12,7 @@ Every idea should include:
 - Status: proposed / deferred / testing / accepted / rejected
 - Related issues, sources and iterations
 
-The current proposal remains [../PLAN.md](../PLAN.md). See [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md).
+The current proposal remains [../PLAN.md](../PLAN.md). See:
+
+- [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md)
+- [0002 — nanobot vs mini-SWE-agent reasoning core](0002-reasoning-core-nanobot-vs-mini-swe.md) — proposed architecture, alternatives and falsifiable selection test; not approved implementation.
