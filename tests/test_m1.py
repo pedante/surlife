@@ -302,3 +302,71 @@ def test_truncated_calls_keep_usage_in_replay(tmp_path, monkeypatch):
     assert report["unknown_usage_requests"] == 0
     assert report["routed_models"] == {"provider/underlying-free": 1}
     assert report["reasoning"] == "off"
+
+
+
+def test_free_instruct_default_and_structured_output_routing(monkeypatch):
+    from surlife.gateway import DEFAULT_MODEL, ACTION_SCHEMA
+
+    assert DEFAULT_MODEL == "qwen/qwen3.8-27b:free"
+    monkeypatch.setenv("OPENROUTER_API_KEY", "PRIVATE_DUMMY")
+    outgoing = []
+    def transport(payload, _key, _timeout):
+        outgoing.append(payload)
+        return {
+            "model": DEFAULT_MODEL,
+            "choices": [{"finish_reason": "stop", "message":
+                         {"content": '{"mask":4,"soul_update":""}'}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 10, "total_tokens": 20},
+        }
+    gw = OpenRouterGateway(transport=transport)
+    assert gw.ask([{"role": "user", "content": "task"}]).mask == 4
+    sent = outgoing[0]
+    assert sent["model"] == DEFAULT_MODEL
+    assert sent["response_format"] == ACTION_SCHEMA
+    assert sent["response_format"]["json_schema"]["strict"] is True
+    assert sent["provider"]["require_parameters"] is True
+    assert sent["reasoning"] == {"enabled": False}
+    assert "PRIVATE_DUMMY" not in json.dumps(sent)
+
+
+def test_random_router_requires_structured_endpoints(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "PRIVATE_DUMMY")
+    outgoing = []
+    def transport(payload, *_):
+        outgoing.append(payload)
+        return {"model": "qwen/qwen3.8-27b:free",
+                "choices": [{"message": {"content": '{"mask":1,"soul_update":""}'}}]}
+    gw = OpenRouterGateway(model="openrouter/free", transport=transport)
+    assert gw.ask([{"role": "user", "content": "task"}]).mask == 1
+    assert outgoing[0]["provider"] == {"require_parameters": True}
+    assert outgoing[0]["response_format"]["type"] == "json_schema"
+
+
+def test_content_safety_classification_rejected_even_if_json(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "PRIVATE_DUMMY")
+    raw = {
+        "model": "nvidia/nemotron-3.5-content-safety:free",
+        "choices": [{"message": {"content": '{"mask":1,"soul_update":""}'}}],
+        "usage": {"prompt_tokens": 530, "completion_tokens": 5, "total_tokens": 535},
+    }
+    gw = OpenRouterGateway(model="openrouter/free", transport=lambda *_: raw)
+    with pytest.raises(GatewayError) as err:
+        gw.ask([{"role": "user", "content": "task"}])
+    assert err.value.reason == "unsuitable_model"
+    assert err.value.model == raw["model"]
+    assert err.value.usage["total_tokens"] == 535
+
+
+def test_schema_routing_failure_not_silently_retried(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "PRIVATE_DUMMY")
+    count = []
+    def refuse(payload, _key, _timeout):
+        count.append(payload)
+        raise GatewayError("Unsupported structured parameters", reason="http_400")
+    gw = OpenRouterGateway(max_requests=1, transport=refuse)
+    with pytest.raises(GatewayError) as err:
+        gw.ask([{"role": "user", "content": "task"}])
+    assert err.value.reason == "http_400"
+    assert gw.remaining == 0
+    assert len(count) == 1
