@@ -44,6 +44,17 @@ The original model scored illegally in all four LLM turns of a real M1.2
 experiment, so this stage tests environment affordances rather than claiming
 evolved intelligence. Read [M13.md](M13.md) for trials and limitations.
 
+## Headroom-calibrated survival tests (M1.4)
+
+**Opt-in:** `surlife --m14` generates larger deterministic puzzle families
+with measurable Greedy-vs-optimal headroom, then settles identical tasks
+under the existing referee in parallel no-inference Greedy, unpriced oracle
+and optionally bounded LLM arms. The benchmark has a separate JSON audit
+with offline `--verify-benchmark-file` replay, not the historical SQLite
+journal. A positive model score does not prove survival advantage after
+consultation costs. See [M14.md](M14.md) for the experiment protocol,
+run commands and important caveats about constructed Greedy traps.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
