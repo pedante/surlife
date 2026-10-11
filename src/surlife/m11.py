@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from .core import AGENTS, POLICIES, RULES_VERSION, START_ENERGY, STAKE, Action, Arena
 from .gateway import FakeGateway, GatewayError, OpenRouterGateway
+from .action_menu import menu_messages
 from .model_registry import check_model
 from .souls import Soul
 from .storage import Journal
@@ -41,6 +42,7 @@ class EvolutionSoul(Soul):
     evaluation_history: list[dict] = field(default_factory=list)
     seen_task_hashes: list[str] = field(default_factory=list)
     history_complete: bool = True
+    action_contract: str = "raw"
 
     @classmethod
     def restore(cls, actor: str, snapshot: str) -> "EvolutionSoul":
@@ -49,6 +51,9 @@ class EvolutionSoul(Soul):
         pending = content.get("pending", [])
         seen = content.get("seen_task_hashes", [])
         complete = content.get("history_complete", False)
+        action_contract = content.get("action_contract", "raw")
+        if action_contract not in ("raw", "menu"):
+            raise ValueError("invalid saved action contract")
         if (not isinstance(seen, list) or len(seen) > MAX_SEEN_TASKS
                 or any(not isinstance(x, str) or not re.fullmatch(r"[0-9a-f]{64}", x) for x in seen)
                 or type(complete) is not bool):
@@ -81,7 +86,8 @@ class EvolutionSoul(Soul):
                 or any(not isinstance(item, dict) for item in history)):
             raise ValueError("invalid evaluation history")
         return cls(**base.__dict__, pending=pending, evaluation_history=history,
-                   seen_task_hashes=seen, history_complete=complete)
+                   seen_task_hashes=seen, history_complete=complete,
+                   action_contract=action_contract)
 
     def save(self, run_dir: Path) -> None:
         """Atomically save complete lineage; inherited M1 snapshots remain compatible."""
@@ -95,6 +101,7 @@ class EvolutionSoul(Soul):
             "pending": self.pending, "evaluation_history": self.evaluation_history,
             "seen_task_hashes": self.seen_task_hashes, "history_complete": self.history_complete,
             "task_history_sha256": task_history_digest(self.seen_task_hashes, self.history_complete),
+            "action_contract": self.action_contract,
         }
         with temp.open("w", encoding="utf-8") as fp:
             json.dump(data, fp, sort_keys=True, indent=2)
@@ -235,6 +242,10 @@ def run_m11(args, db_path: Path) -> dict:
         raise ValueError("M1.1 currently supports --a llm against one scripted --b policy")
     if args.cognition not in ("always", "selective", "never"):
         raise ValueError("invalid cognition mode")
+    m13 = bool(getattr(args, "m13", False))
+    contract = getattr(args, "action_contract", "menu" if m13 else "raw") if m13 else "raw"
+    if contract not in ("raw", "menu"):
+        raise ValueError("invalid action contract")
     if args.provider == "openrouter":
         if not os.environ.get("OPENROUTER_API_KEY", "").strip():
             raise ValueError("OPENROUTER_API_KEY required for --provider openrouter")
@@ -255,14 +266,21 @@ def run_m11(args, db_path: Path) -> dict:
         soul = EvolutionSoul.restore("a", source)
     else:
         base = Soul.new("a", custom)
-        soul = EvolutionSoul(**base.__dict__)
+        soul = EvolutionSoul(**base.__dict__, action_contract=contract)
+    if m13 and source and soul.action_contract != contract:
+        raise ValueError("inherited soul action contract differs; use a fresh lineage")
+    if not m13 and source and soul.action_contract != "raw":
+        raise ValueError("menu-lineage soul requires --m13 with --action-contract menu")
 
     arena = Arena(args.seed)
     manifest = {
-        "rules": RULES_VERSION, "kind": "m12-observable-evolution" if getattr(args, "m12", False) else "m11-staged-evolution",
+        "rules": RULES_VERSION, "kind": ("m13-admissible-actions" if m13 else
+            "m12-observable-evolution" if getattr(args, "m12", False) else
+            "m11-staged-evolution"),
         "seed": args.seed, "start_energy": START_ENERGY, "stake": STAKE,
         "policies": {"a": "llm", "b": args.b},
         "cognition": args.cognition,
+        "action_contract": contract,
         "provider": args.provider, "requested_model": (
             args.model if args.provider == "openrouter" else "surlife/fake-model"
         ),
@@ -296,7 +314,13 @@ def run_m11(args, db_path: Path) -> dict:
                     try:
                         messages = (soul.messages(a_obs) if mode == "action"
                                     else soul.reflection_messages())
-                        reply = gateway.ask(messages, mode=mode if mode == "reflection" else "action")
+                        allowed = None
+                        if mode == "action" and m13 and contract == "menu":
+                            messages, allowed = menu_messages(messages, a_obs)
+                        if allowed is None:
+                            reply = gateway.ask(messages, mode=mode)
+                        else:
+                            reply = gateway.ask(messages, mode="action", allowed_masks=allowed)
                         if mode == "action":
                             a_action = Action(reply.mask)
                         else:
@@ -306,6 +330,12 @@ def run_m11(args, db_path: Path) -> dict:
                             "model": reply.model, "usage": reply.usage,
                             "soul_version": soul.version, "soul_hash": soul.sha256,
                         }
+                        if allowed is not None:
+                            metadata["a"]["action_contract"] = "menu"
+                            metadata["a"]["menu_size"] = len(allowed)
+                            metadata["a"]["contract_violation"] = (
+                                type(reply.mask) is not int or reply.mask not in allowed
+                            )
                     except GatewayError as exc:
                         metadata["a"] = {
                             "status": "provider_or_parse_failure", "consulted": gateway.calls > before,
@@ -357,7 +387,7 @@ def run_m11(args, db_path: Path) -> dict:
                     "score_ratio": (round(score / record["optimal_score"], 6)
                                     if score is not None and score >= 0 else None),
                 })
-            if getattr(args, "m12", False):
+            if getattr(args, "m12", False) or m13:
                 # Shadow baseline is observation-only: it NEVER replaces the
                 # proposed model action or changes settlement, and is scored
                 # against the exact same task for causal diagnostics.
@@ -379,6 +409,7 @@ def run_m11(args, db_path: Path) -> dict:
         "kind": manifest["kind"], "provider": args.provider,
         "model_requests": gateway.calls, "max_requests": gateway.limit,
         "requested_model": manifest["requested_model"], "cognition": args.cognition,
+        "action_contract": contract,
         "consultation_modes": mode_counts, "pending_revisions": len(soul.pending),
         "staged_revisions": stage_count, "soul_versions": {"a": soul.version},
         "soul_dir": str(root),
