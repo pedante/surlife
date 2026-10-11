@@ -31,7 +31,8 @@ def run_m1(args, db_path: Path) -> dict:
         if not os.environ.get("OPENROUTER_API_KEY", "").strip():
             raise ValueError("OPENROUTER_API_KEY required for --provider openrouter")
     gateway = (OpenRouterGateway(model=args.model, max_requests=args.max_requests,
-                                 max_output_tokens=args.max_output_tokens)
+                                 max_output_tokens=args.max_output_tokens,
+                                 reasoning=args.reasoning)
                if args.provider == "openrouter" else FakeGateway(max_requests=args.max_requests))
     policies = {"a": args.a, "b": args.b}
     run_id = args.run_id or uuid4().hex[:12]
@@ -54,6 +55,7 @@ def run_m1(args, db_path: Path) -> dict:
         "policies": policies, "provider": args.provider,
         "requested_model": args.model if args.provider == "openrouter" else "surlife/fake-model",
         "max_requests": args.max_requests, "max_output_tokens": args.max_output_tokens,
+        "reasoning": args.reasoning if args.provider == "openrouter" else "fake",
         "initial_soul_hashes": {a: s.sha256 for a, s in souls.items()},
     }
     with Journal(db_path) as journal:
@@ -121,6 +123,7 @@ def run_m1(args, db_path: Path) -> dict:
 
     report.update({
         "provider": args.provider, "requested_model": manifest["requested_model"],
+        "reasoning": manifest["reasoning"],
         "model_requests": gateway.calls, "max_requests": gateway.limit,
         "soul_versions": {a: s.version for a, s in souls.items()},
         "soul_dir": str(root),
