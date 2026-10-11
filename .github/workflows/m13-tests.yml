@@ -1,0 +1,30 @@
+name: M1.3 legal action menu tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  m13-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install -e '.[test]'
+      - name: Run M1.3 menu and evaluation regressions
+        run: pytest -q tests/test_m13.py
+      - name: Offline M1.3 lifecycle and replay
+        run: |
+          surlife --m13 --seed 17 --ticks 12 --a llm --b greedy --provider fake --cognition selective --max-requests 8 --run-id ci-m13 --db out/m13-ci.sqlite --souls-dir out/m13-ci-souls
+          surlife --replay ci-m13 --db out/m13-ci.sqlite
+          surlife --m13 --evaluate-soul out/m13-ci-souls/ci-m13/a.json --provider fake --evaluation-seed 3003 --evaluation-tasks 2 --evaluation-cohorts 2 --max-evaluation-requests 8
