@@ -17,7 +17,7 @@ def main() -> None:
     parser.add_argument("--b", choices=sorted(POLICIES), default="optimal")
     parser.add_argument("--db", default="out/surlife.sqlite")
     parser.add_argument("--provider", choices=("fake", "openrouter"), default="fake")
-    parser.add_argument("--model", default="qwen/qwen3.8-27b:free", help="pinned general-chat :free model (recommended) or openrouter/free (random)")
+    parser.add_argument("--model", default="dots-studio/dots-3-note-preview:free", help="verified free structured-output model; use --check-model before inference")
     parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
     parser.add_argument("--max-output-tokens", type=int, default=512)
     parser.add_argument("--reasoning", choices=("off", "low", "auto"), default="off",
@@ -29,9 +29,18 @@ def main() -> None:
     parser.add_argument("--inherit-soul-b", help="prior b.json snapshot; restores soul and memory")
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--replay", metavar="RUN_ID", help="verify saved events without running new turns")
+    parser.add_argument("--check-model", action="store_true",
+                        help="check OpenRouter public model catalog without an LLM request or API key")
     args = parser.parse_args()
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.check_model:
+        from .model_registry import check_model
+        try:
+            print(json.dumps(check_model(args.model), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     path = Path(args.db)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Replay is always offline and takes precedence over --provider / --a llm.
