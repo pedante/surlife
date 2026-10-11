@@ -1,6 +1,12 @@
 # Igor Life / Primordial Arena
 
 *Artificial life fights for survival.*
+## Planning and recursive LLM reviews
+
+**[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
+
+The **current proposal** is [foundation/PLAN.md](foundation/PLAN.md). The **first frozen review snapshot** is [foundation/iterations/0001/PROPOSAL.md](foundation/iterations/0001/PROPOSAL.md). Start a fresh Codex or other LLM review using [foundation/prompts/REVIEWER.md](foundation/prompts/REVIEWER.md). Reviews have not yet been conducted; this is a design research workflow, not a running simulation.
+
 ## Foundation documents — concept and engineering research
 
 **Status:** design proposal, not implemented or experimentally validated  

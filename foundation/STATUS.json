@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "project": "surlife",
+  "phase": "design_review",
+  "current_iteration": "0001",
+  "current_plan": "foundation/PLAN.md",
+  "frozen_proposal": "foundation/iterations/0001/PROPOSAL.md",
+  "proposal_revision": "0.1",
+  "review_state": "awaiting_independent_reviews",
+  "review_count": 0,
+  "synthesis_state": "pending",
+  "implementation_state": "not_started",
+  "scientific_validation": "not_tested",
+  "next_action": "Run two independent, source-grounded reviews of the same frozen proposal; store each review before synthesis.",
+  "updated_on": "2026-10-11"
+}
