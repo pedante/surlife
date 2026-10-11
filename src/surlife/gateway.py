@@ -291,7 +291,7 @@ class FakeGateway(OpenRouterGateway):
     def __init__(self, max_requests: int = 6):
         super().__init__(max_requests=max_requests)
 
-    def ask(self, messages: list[dict]) -> Reply:
+    def ask(self, messages: list[dict], *, mode: str = "action") -> Reply:
         if not self.remaining:
             raise GatewayError("per-run request cap reached")
         self.calls += 1
