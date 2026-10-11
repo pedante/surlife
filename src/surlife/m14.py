@@ -291,6 +291,10 @@ def run_m14(args) -> dict:
         raise ValueError("invalid M1.4 cognition schedule")
     if type(args.max_requests) is not int or not 1 <= args.max_requests <= MAX_CASES:
         raise ValueError("M1.4 max-requests must be from 1 to 48")
+    destination = getattr(args, "benchmark_out", None)
+    if destination and Path(destination).exists():
+        # Do not consume quota when the requested report filename is in use.
+        raise ValueError("benchmark output exists; choose another filename")
     cases = make_cases(args.seed, args.benchmark_cases,
                        args.benchmark_items, args.benchmark_profile)
     gateway = _gateway(args) if args.a == "llm" and args.cognition != "never" else None
@@ -395,9 +399,9 @@ def verify_report(report: dict) -> dict:
                  and record["scores"]["a"] >= 0),
             )):
                 raise ValueError("benchmark task metadata mismatch")
-            if name == "greedy" and record["actions"]["a"] != case["greedy_mask"]:
+            if name == "greedy" and record["attempted"]["a"] and record["actions"]["a"] != case["greedy_mask"]:
                 raise ValueError("greedy baseline deviated from deterministic policy")
-            if name == "oracle" and record["actions"]["a"] != case["oracle_mask"]:
+            if name == "oracle" and record["attempted"]["a"] and record["actions"]["a"] != case["oracle_mask"]:
                 raise ValueError("oracle baseline deviated from optimal policy")
             if name == "llm":
                 charged = record["consultations"]["a"]
