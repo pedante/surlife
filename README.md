@@ -9,7 +9,7 @@ See [IMPLEMENTATION.md](IMPLEMENTATION.md) for exact commands, tested scope, reu
 
 ## Bounded LLM organisms (M1)
 
-**Experimental implementation:** M1 introduces separate versioned souls, bounded memory and one JSON action per hosted model consultation. It supports the OpenRouter free tier with no extra runtime SDK or a deterministic fake provider for offline tests. See [M1.md](M1.md) for Fish shell API-key setup, CLI examples, provider restrictions and scientific limitations. The M1 default is pinned to the general-purpose free Qwen3.8 27B model and requires structured JSON output. The optional random `openrouter/free` route is discouraged for controlled comparisons.
+**Experimental implementation:** M1 introduces separate versioned souls, bounded memory and one JSON action per hosted model consultation. It supports the OpenRouter free tier with no extra runtime SDK or a deterministic fake provider for offline tests. See [M1.md](M1.md) for Fish shell API-key setup, CLI examples, provider restrictions and scientific limitations. The M1 default is pinned to a catalog-listed free Dots3-Note Preview model and validates current free pricing and structured JSON support before any real inference. The optional random `openrouter/free` route is discouraged for controlled comparisons.
 
 ## Planning and recursive LLM reviews
 
