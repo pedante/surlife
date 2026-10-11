@@ -113,6 +113,19 @@ def evaluate_snapshot_v2(args) -> dict:
     models = {}
     outcomes = []
     failure = None
+
+    def account(model: str | None, reported: dict | None) -> None:
+        nonlocal unknown_usage
+        served = model if isinstance(model, str) and model else "unknown"
+        models[served] = models.get(served, 0) + 1
+        if isinstance(reported, dict) and all(
+            type(reported.get(key)) is int and reported[key] >= 0 for key in usage
+        ):
+            for key in usage:
+                usage[key] += reported[key]
+        else:
+            unknown_usage += 1
+
     for cohort_index, batch in enumerate(cohorts):
         pairs = []
         for task_index, (task_hash, obs) in enumerate(batch):
@@ -127,9 +140,11 @@ def evaluate_snapshot_v2(args) -> dict:
                 try:
                     reply = gw.ask(tested.messages(obs))
                 except GatewayError as error:
+                    account(error.model, error.usage)
                     failure = {"cohort": cohort_index, "task_index": task_index,
                                "variant": label, "reason": error.reason}
                     break
+                account(reply.model, reply.usage)
                 if args.provider == "openrouter" and reply.model != args.model:
                     failure = {"cohort": cohort_index, "task_index": task_index,
                                "variant": label, "reason": "routed_model_mismatch"}
@@ -139,14 +154,7 @@ def evaluate_snapshot_v2(args) -> dict:
                     "mask": reply.mask, "score": score, "legal": score >= 0,
                     "model": reply.model,
                 }
-                models[reply.model] = models.get(reply.model, 0) + 1
-                if isinstance(reply.usage, dict) and all(
-                    type(reply.usage.get(k)) is int for k in usage
-                ):
-                    for key in usage:
-                        usage[key] += reply.usage[key]
-                else:
-                    unknown_usage += 1
+
             if failure is not None:
                 break
             pairs.append(pair)
