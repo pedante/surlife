@@ -246,3 +246,59 @@ def test_m1_journal_records_reason_without_provider_body(tmp_path, monkeypatch):
     assert "provider_error_503" in first
     assert "TOP_SECRET_TEST_KEY" not in first
     assert "provider internal issue" not in first
+
+
+@pytest.mark.parametrize(("reasoning_mode", "expected_reasoning"), [
+    ("off", {"enabled": False}),
+    ("low", {"effort": "low"}),
+    ("auto", None),
+])
+def test_openrouter_reasoning_configuration(monkeypatch, reasoning_mode, expected_reasoning):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "DUMMY_KEY")
+    seen = []
+    def transport(payload, _key, _timeout):
+        seen.append(payload)
+        return {"model": "test/free", "choices": [{"finish_reason": "stop",
+                "message": {"content": '{"mask":0}'}}], "usage": {"total_tokens": 10}}
+    gateway = OpenRouterGateway(reasoning=reasoning_mode, transport=transport)
+    assert gateway.ask([{"role": "user", "content": "one puzzle"}]).mask == 0
+    assert seen[0].get("reasoning") == expected_reasoning
+    assert seen[0]["max_completion_tokens"] == 512
+
+
+def test_gateway_rejects_unknown_reasoning_modes():
+    with pytest.raises(ValueError, match="reasoning"):
+        OpenRouterGateway(reasoning="extended")
+
+
+def test_truncated_completion_preserves_model_and_token_counts(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "DUMMY_KEY")
+    raw = {"model": "provider/underlying-free", "usage": {
+        "prompt_tokens": 123, "completion_tokens": 512, "total_tokens": 635,
+    }, "choices": [{"finish_reason": "length", "message": {"content": ""}}]}
+    gw = OpenRouterGateway(transport=lambda *_: raw)
+    with pytest.raises(GatewayError) as caught:
+        gw.ask([{"role": "user", "content": "one puzzle"}])
+    assert caught.value.reason == "completion_truncated"
+    assert caught.value.model == "provider/underlying-free"
+    assert caught.value.usage["completion_tokens"] == 512
+
+
+def test_truncated_calls_keep_usage_in_replay(tmp_path, monkeypatch):
+    import surlife.runner as runner_module
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "DUMMY_KEY")
+    raw = {"model": "provider/underlying-free", "usage": {
+        "prompt_tokens": 111, "completion_tokens": 512, "total_tokens": 623,
+    }, "choices": [{"finish_reason": "length", "message": {"content": ""}}]}
+    def patched(**kwargs):
+        return OpenRouterGateway(transport=lambda *_: raw, **kwargs)
+    monkeypatch.setattr(runner_module, "OpenRouterGateway", patched)
+    opts = options(tmp_path, provider="openrouter", max_requests=1, ticks=2, reasoning="off")
+    report = run_m1(opts, tmp_path / "truncated.sqlite")
+    assert report["verified"] is True
+    assert report["failure_reasons"] == {"completion_truncated": 1}
+    assert report["reported_tokens"]["total_tokens"] == 623
+    assert report["unknown_usage_requests"] == 0
+    assert report["routed_models"] == {"provider/underlying-free": 1}
+    assert report["reasoning"] == "off"
