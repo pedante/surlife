@@ -123,6 +123,13 @@ class Arena:
         start = dict(self.balances)
         active = {a: start[a] > 0 for a in AGENTS}
         task, weather = self._puzzle()
+        # Reject unaffordable external consultations before mutating world state.
+        upkeep_due = {"normal": 1, "fog": 2, "drought": 3}[weather]
+        for a, n in consultations.items():
+            if n:
+                possible = max(0, start[a] + (1 if self.tick % 4 == 0 and active[a] else 0) - upkeep_due)
+                if not active[a] or possible < COGNITION_COST:
+                    raise ValueError("consultation not affordable after upkeep")
         transfers: list[dict] = []
 
         def move(src: str, dst: str, amount: int, kind: str) -> None:
