@@ -23,6 +23,8 @@ def main() -> None:
     parser.add_argument("--souls-dir", default="out/souls")
     parser.add_argument("--soul-a", help="optional custom initial soul text (LLM A)")
     parser.add_argument("--soul-b", help="optional custom initial soul text (LLM B)")
+    parser.add_argument("--inherit-soul-a", help="prior a.json snapshot; restores soul and memory")
+    parser.add_argument("--inherit-soul-b", help="prior b.json snapshot; restores soul and memory")
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--replay", metavar="RUN_ID", help="verify saved events without running new turns")
     args = parser.parse_args()
