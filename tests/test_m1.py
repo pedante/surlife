@@ -232,6 +232,7 @@ def test_m1_journal_records_reason_without_provider_body(tmp_path, monkeypatch):
     def mocked_gateway(**settings):
         return OpenRouterGateway(transport=lambda *_: response, **settings)
 
+    monkeypatch.setattr(runner_module, "check_model", lambda _: {"available": True})
     monkeypatch.setattr(runner_module, "OpenRouterGateway", mocked_gateway)
     args = options(tmp_path, provider="openrouter", max_requests=2, ticks=4)
     db_path = tmp_path / "world.sqlite"
@@ -293,6 +294,7 @@ def test_truncated_calls_keep_usage_in_replay(tmp_path, monkeypatch):
     }, "choices": [{"finish_reason": "length", "message": {"content": ""}}]}
     def patched(**kwargs):
         return OpenRouterGateway(transport=lambda *_: raw, **kwargs)
+    monkeypatch.setattr(runner_module, "check_model", lambda _: {"available": True})
     monkeypatch.setattr(runner_module, "OpenRouterGateway", patched)
     opts = options(tmp_path, provider="openrouter", max_requests=1, ticks=2, reasoning="off")
     report = run_m1(opts, tmp_path / "truncated.sqlite")
@@ -308,7 +310,7 @@ def test_truncated_calls_keep_usage_in_replay(tmp_path, monkeypatch):
 def test_free_instruct_default_and_structured_output_routing(monkeypatch):
     from surlife.gateway import DEFAULT_MODEL, ACTION_SCHEMA
 
-    assert DEFAULT_MODEL == "qwen/qwen3.8-27b:free"
+    assert DEFAULT_MODEL == "dots-studio/dots-3-note-preview:free"
     monkeypatch.setenv("OPENROUTER_API_KEY", "PRIVATE_DUMMY")
     outgoing = []
     def transport(payload, _key, _timeout):
@@ -370,3 +372,87 @@ def test_schema_routing_failure_not_silently_retried(monkeypatch):
     assert err.value.reason == "http_400"
     assert gw.remaining == 0
     assert len(count) == 1
+
+
+
+def _catalog_model(model="dots-studio/dots-3-note-preview:free", *,
+                   prompt="0", completion="0", structured=True, output="text"):
+    return {"data": [{
+        "id": model,
+        "pricing": {"prompt": prompt, "completion": completion},
+        "supported_parameters": (
+            ["response_format", "structured_outputs"] if structured else ["max_tokens"]
+        ),
+        "architecture": {"output_modalities": [output]},
+    }]}
+
+
+def test_model_registry_accepts_pinned_free_chat_model():
+    from surlife.model_registry import check_model
+    result = check_model(
+        "dots-studio/dots-3-note-preview:free", lambda: _catalog_model()
+    )
+    assert result["available"] and result["free"] and result["structured_json"]
+
+
+@pytest.mark.parametrize(("model", "catalog", "diagnostic"), [
+    ("qwen/qwen3.8-27b:free", _catalog_model(), "not listed"),
+    ("dots-studio/dots-3-note-preview:free", _catalog_model(prompt="0.0001"), "not zero-priced"),
+    ("dots-studio/dots-3-note-preview:free", _catalog_model(structured=False), "structured JSON"),
+    ("dots-studio/dots-3-note-preview:free", _catalog_model(output="image"), "text output"),
+    ("nvidia/nemotron-3.5-content-safety:free",
+     _catalog_model(model="nvidia/nemotron-3.5-content-safety:free"), "not a supported chat"),
+])
+def test_model_registry_rejects_unavailable_paid_unstructured_or_safety_model(
+    model, catalog, diagnostic
+):
+    from surlife.model_registry import check_model
+    with pytest.raises(ValueError, match=diagnostic):
+        check_model(model, lambda: catalog)
+
+
+def test_model_registry_fails_closed_on_malformed_catalog():
+    from surlife.model_registry import check_model
+    with pytest.raises(ValueError, match="unexpected format"):
+        check_model("dots-studio/dots-3-note-preview:free", lambda: {"data": {}})
+
+
+def test_live_runner_model_preflight_prevents_any_journal_or_provider_request(
+    tmp_path, monkeypatch
+):
+    import surlife.runner as runner_module
+    monkeypatch.setenv("OPENROUTER_API_KEY", "MOCK_PRIVATE")
+    calls = []
+    def check(model):
+        calls.append(model)
+        raise ValueError("model absent in live catalog")
+    monkeypatch.setattr(runner_module, "check_model", check)
+    dbpath = tmp_path / "world.sqlite"
+    opts = options(tmp_path, provider="openrouter", ticks=2)
+    with pytest.raises(ValueError, match="model absent"):
+        run_m1(opts, dbpath)
+    assert calls == ["openrouter/free"]
+    assert not dbpath.exists()
+    assert not (tmp_path / "souls" / "test-1").exists()
+
+
+def test_cli_model_check_is_read_only_and_works_without_key(monkeypatch, capsys, tmp_path):
+    import sys
+    import surlife.model_registry as registry_module
+    from surlife.cli import main
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    called = []
+    def local_check(model):
+        called.append(model)
+        return {"model": model, "available": True, "free": True,
+                "structured_json": True, "source": registry_module.CATALOG_URL}
+    monkeypatch.setattr(registry_module, "check_model", local_check)
+    monkeypatch.setattr(sys, "argv", [
+        "surlife", "--provider", "openrouter", "--model",
+        "dots-studio/dots-3-note-preview:free", "--check-model",
+        "--db", str(tmp_path / "must_not_create.sqlite"),
+    ])
+    main()
+    assert json.loads(capsys.readouterr().out)["available"] is True
+    assert called == ["dots-studio/dots-3-note-preview:free"]
+    assert not (tmp_path / "must_not_create.sqlite").exists()
