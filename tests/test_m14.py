@@ -243,6 +243,7 @@ def test_unexpected_served_model_is_charged_and_excluded_from_model_actions(tmp_
     assert arm["consultations"] == 1
     assert arm["model_actions"] == 0
     assert arm["provider_failures"] == 1
+    assert result["failure_reasons"] == {"routed_model_mismatch": 1}
     assert arm["reported_tokens"]["total_tokens"] == 19
     assert arm["unknown_usage_requests"] == 0
     saved = json.loads((tmp_path / "m14.json").read_text())
@@ -265,3 +266,25 @@ def test_dp_baseline_also_replays_and_detects_tampering(tmp_path):
     wrong["arms"]["dp"][0]["actions"]["a"] = 0
     with pytest.raises(ValueError, match="transition mismatch|DP baseline deviated"):
         verify_report(wrong)
+
+
+def test_safe_failure_summary_preserves_historical_replay(tmp_path, monkeypatch):
+    import surlife.m14 as m14
+    class Unavailable:
+        def __init__(self):
+            self.calls = 0
+            self.limit = 1
+            self.model = "fake/down"
+        @property
+        def remaining(self):
+            return self.limit - self.calls
+        def ask(self, messages, *, mode="action", benchmark_items=None):
+            self.calls += 1
+            raise GatewayError("an untrusted provider message", "http_400")
+    monkeypatch.setattr(m14, "_gateway", lambda _: Unavailable())
+    result = run_m14(opts(tmp_path, max_requests=1, benchmark_cases=2))
+    assert result["failure_reasons"] == {"http_400": 1}
+    persisted = json.loads((tmp_path / "m14.json").read_text())
+    assert "failure_reasons" not in persisted["summary"]
+    assert verify_report(persisted)["head"] == result["head"]
+    assert "an untrusted provider message" not in json.dumps(result)
