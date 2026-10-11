@@ -115,6 +115,9 @@ class Journal:
         score_ratio_sums = {"a": 0.0, "b": 0.0}
         total_regret = {"a": 0, "b": 0}
         consultation_modes: dict[str, int] = {}
+        by_action_source: dict[str, dict] = {}
+        shadow_llm = {"compared": 0, "better": 0, "same": 0, "worse": 0,
+                      "total_score_delta": 0}
         earned = {"a": 0, "b": 0}
         consultations = {"a": 0, "b": 0}
         n = 0
@@ -156,6 +159,30 @@ class Journal:
                 else:
                     for k in usage_totals:
                         usage_totals[k] += usage[k]
+            for actor in AGENTS:
+                info = data.get("model_calls", {}).get(actor, {})
+                source = str(info.get("action_source", manifest.get("policies", {}).get(actor, "scripted")))
+                row = by_action_source.setdefault(source, {
+                    "attempts": 0, "legal": 0, "invalid": 0, "optimal": 0,
+                    "score_sum": 0, "optimum_sum": 0,
+                })
+                if expected["attempted"][actor]:
+                    row["attempts"] += 1
+                    score = expected["scores"][actor]
+                    row["optimum_sum"] += expected["optimal_score"]
+                    if score is not None and score >= 0:
+                        row["legal"] += 1
+                        row["score_sum"] += score
+                    else:
+                        row["invalid"] += 1
+                    if score == expected["optimal_score"]:
+                        row["optimal"] += 1
+                if (actor == "a" and source == "llm_action"
+                        and type(info.get("delta_vs_greedy")) is int):
+                    delta = info["delta_vs_greedy"]
+                    shadow_llm["compared"] += 1
+                    shadow_llm["total_score_delta"] += delta
+                    shadow_llm["better" if delta > 0 else "worse" if delta < 0 else "same"] += 1
             if expected["entered"]:
                 entered += 1
             for a in AGENTS:
@@ -187,4 +214,5 @@ class Journal:
                 "mean_score_ratio": {a: round(score_ratio_sums[a] / attempts[a], 4)
                                      if attempts[a] else None for a in AGENTS},
                 "total_legal_regret": total_regret,
-                "consultation_modes": consultation_modes}
+                "consultation_modes": consultation_modes,
+                "by_action_source": by_action_source, "llm_vs_shadow_greedy": shadow_llm}
