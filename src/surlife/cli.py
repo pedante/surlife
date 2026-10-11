@@ -19,7 +19,8 @@ def main() -> None:
     parser.add_argument("--provider", choices=("fake", "openrouter", "google"), default="fake")
     parser.add_argument("--model", default=None, help="provider-selected default; use --check-model before inference")
     parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
-    parser.add_argument("--max-output-tokens", type=int, default=512)
+    parser.add_argument("--max-output-tokens", type=int, default=None,
+                        help="output including thinking tokens: Google default 4096 (max 8192), other providers default 512")
     parser.add_argument("--reasoning", choices=("off", "low", "auto"), default="off",
                         help="OpenRouter reasoning: off (default), low effort, or auto")
     parser.add_argument("--souls-dir", default="out/souls")
@@ -63,6 +64,8 @@ def main() -> None:
     if args.model is None:
         args.model = ("gemini-3.8-flash" if args.provider == "google"
                       else "dots-studio/dots-3-note-preview:free")
+    if args.max_output_tokens is None:
+        args.max_output_tokens = 4096 if args.provider == "google" else 512
     if args.provider == "google" and not (args.m14 or args.check_model or args.verify_benchmark_file):
         parser.error("--provider google is supported for --m14 benchmark runs in this PR")
     if sum((args.m11, args.m12, args.m13, args.m14)) > 1:
