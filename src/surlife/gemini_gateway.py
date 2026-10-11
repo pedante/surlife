@@ -122,7 +122,7 @@ class GeminiGateway:
             from google import genai
         except ImportError:
             raise GatewayError("install google-genai optional dependency", "missing_google_sdk") from None
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key, http_options={"api_version": "v1"})
         try:
             return client.interactions.create(**kwargs)
         finally:
