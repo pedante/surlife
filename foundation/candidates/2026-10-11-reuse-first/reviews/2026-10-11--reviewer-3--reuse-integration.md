@@ -94,3 +94,129 @@
 | Event history/replay | SQLite transactions/hashes | JSONL export only | event sourcing conventions | deterministic reducer/canonical events | **A+D**, avoid event broker |
 | Adversarial evaluation | pytest/Hypothesis/Inspect | external hidden test runner | Foundry red/green barrier | actual hidden ACL/scorer authority | **A+C+D**, no unlicensed code |
 | Genome versioning/inheritance | hashes, immutable blobs, Git researcher-side | later population algorithms | Letta skill-memory versioning | parentage/compatibility/privacy/capital | **A+C+D**, not generic genome VM |
+
+
+## 5. Four-plus complete implementation strategies, with weighted scores
+
+**User-weighted criteria:** reliable reusable functionality **30%**, ease of integration/maintenance **25%**, future evolution **20%**, security/isolation compatibility **15%**, scientific reproducibility **10%**. Each criterion scored 0–100 as **[J] architecture judgment, not measured engineering effort or scientific evidence**. An actual critical safety or license failure **disqualifies** deployment regardless of score. All choices require the same host-held money, secrets and referee boundaries.
+
+| Complete strategy | Reuse 30 | Integration 25 | Future 20 | Security 15 | Reproducibility 10 | Total /100 | Trade-off |
+|---|---:|---:|---:|---:|---:|---:|---|
+| **A — R1**: custom referee + attempted mini-SWE M1 adapter + modular genomes | 73 | 75 | 90 | 84 | 90 | **80.3** | Strong boundaries, questionable amount of reusable coding-agent code in routine decisions |
+| **B — Native minimal**: stdlib+SQLite world, provider SDK, tiny runner, few adapters | 55 | 94 | 82 | 86 | 88 | **78.1** | Least moving parts, but may reinvent sophisticated optimization later |
+| **C — Maximum framework reuse**: smolagents + Mesa + PettingZoo + OpenEvolve + Inspect, independent financial layer | 90 | 38 | 75 | 45 | 70 | **65.3** | Many overlapping lifecycles/schedulers/execution owners; **not eligible** until strict isolation/cost/privacy gates pass |
+| **D — Recommended thin waist**: custom world + native M1/SDK/pytest + optional GEPA offline, mini-SWE isolated M2, OpenSpiel/Inspect externally, PettingZoo when needed | 85 | 90 | 92 | 88 | 94 | **89.0** | Clear contract discipline and empirical dependency gates needed |
+| **E — Benchmark first**: external objective tasks + native decision/cost gate, postpone persistent ecological economy | 80 | 92 | 55 | 94 | 97 | **81.8** | Most direct falsification of learning hypothesis but *not yet* artificial-life survival |
+
+**Scoring explanations:** A is high on future modularity and replay but loses points for a probable agent-loop adapter tax. B removes dependencies and is auditable, though it could become a growing handmade optimizer if the team refuses later libraries. C superficially maximizes code “reused” but incurs competing scheduling, model, tool, evaluator and persistence authorities. D preserves the irreducible Surlife-specific authority and selectively adopts proven external components without making their internal APIs Surlife's genome. E greatly simplifies early scientific controls at the cost of deferring the survival/social hypothesis. No claim that D's 89.0 is empirical performance; it is a decision prior reversible by evidence.
+
+**Sensitivity:** If a mini-SWE restricted fake-model wrapper has fewer total maintained adapter + transitive obligations than the native M1, upgrade A. If GEPA overfits, exposes final data, requires unsupported API access or costs more than useful prompt evolution, drop GEPA with no architectural change. If Mesa replaces significant measured custom spatial scheduling while meeting referee parity, adopt Mesa behind the world interface. No high score licenses unconfined code.
+
+**Independent foundation rubric cross-check:** [`foundation/RUBRIC.md`](https://github.com/pedante/surlife/blob/8b4a23d23db30adaa5b3008ad419089cf7697735/foundation/RUBRIC.md) is a different proposal-quality measure: R1 falsifiability **4.0/5**, feasibility **3.5**, security **3.5**, economy **4.0**, scope **3.0**, reproducibility **4.0**, evolvability **4.0** ⇒ **74/100** weighted by the original rubric. Reasoning: genuine controls and replay aspiration, but unbuilt challenge/adapter/worker and premature future slots. **Blockers override scores.**
+
+## 6. Recommended architecture and narrow integration map
+
+~~~text
+  RESEARCH HARNESS: matched seeds, capital, budgets and sealed holdouts
+     pytest/Hypothesis | optional Inspect AI | optional GEPA/OpenSpiel
+                                |
+              HOST AUTHORITY (Python stdlib, SQLite)
+         +----------------------+----------------------+
+         | WorldRules: seeded reducer, clock, task score |
+         | E ledger: escrow, mint/burn, atomic idempotency|
+         | Visibility: per-actor observation filtering  |
+         | ModelBudgetGateway: pre-call money reservation |
+         | Genome/Skill registry: hashes, trial provenance|
+         +----------------------+----------------------+
+                                |
+                  versioned DATA-ONLY interface
+                                |
+           UNTRUSTED ORGANISM DECISION CONTEXT
+             own soul / memories / admitted skills
+          deterministic policy OR paid model reasoning
+                 ONE VALIDATED WORLD INTENT
+                                |
+                 optional DIFFERENT M2 process
+         mini-SWE code author in disposable, reviewed sandbox
+                 -> external contract and shadow tests
+                 -> trusted promotion at a tick boundary
+
+  OPTIONAL ADAPTERS (NEVER ACCOUNTING AUTHORITIES)
+   WorldBackend -> PettingZoo ParallelEnv compatibility
+   WorldBackend -> Mesa only for a richer ecology later
+   TaskEvaluator -> OpenSpiel tasks/games via controlled adapter
+   ResearchOptimizer -> GEPA, later DEAP/OpenEvolve offline
+~~~
+
+**Contracts should be *versioned serialized data*, not a dependence on one agent framework.** The following Python Protocol shapes are illustrations, not implementation specifications:
+
+~~~python
+class OrganismRunner(Protocol):
+    def decide(self, observation: dict, genome_ref: str,
+               allowance: dict) -> dict: ...
+    # One proposed WORLD intent. Internal cognition may be multi-step,
+    # but every model call remains subject to externally enforced caps.
+
+class TaskEvaluator(Protocol):
+    def generate(self, seed: int, regime: dict) -> dict: ...
+    def score(self, task: dict, sealed_submission: dict) -> dict: ...
+    # Trusted objective score; NEVER direct virtual energy transfer.
+
+class WorldBackend(Protocol):
+    def initial(self, seed: int, rules_version: str) -> dict: ...
+    def observe(self, state: dict, authenticated_actor: str) -> dict: ...
+    def resolve(self, state: dict, intents: list, rng) -> tuple: ...
+    # No model I/O, shell or untrusted Python import.
+
+class CapabilityManifest(Protocol):
+    # Immutable ID, type/version, code/content hash,
+    # runtime/language and typed I/O contract,
+    # dependencies, visibility, evidence, permissions.
+    ...
+~~~
+
+**Observation envelope V1:** world/rules version, actor-scoped visible state, phase, tick, capabilities/allowed world intent kinds and host-controlled resource allowances. **Intent envelope V1:** schema/version, turn ID, intent ID, kind, validated payload, active genome hash and optional maximum virtual-energy debit. Actor identity is derived from authenticated worker channel **not self-asserted JSON**. Store a canonical payload hash for each actor/world/idempotency key: identical retry replays the original outcome; reuse with a different payload rejects without effect. Resolve same-tick decisions in a documented deterministic order. LLM responses and provider usage are recorded externally for reducer replay; fresh nondeterministic model calls are **not** byte-for-byte replay.
+
+**Critical two planes:** World intents cause trusted environment/economy changes at the phase boundary. Cognitive operations—reflect, update soul, retrieve private memory, propose mutation, test candidate—are *internally metered* operations, not arbitrary world writes. A one-intent outer API must **not** limit future organisms to one thought or one cognitive architecture. Do not allow generated code to call the provider or alter the referee directly.
+
+**Genome:** a versioned manifest referencing independently content-addressed soul prompt, memory roots, admitted skill blobs, cognitive policy configuration and ancestry. Shared **immutable** code can be inherited/published; no shared mutable per-agent memory. A child receives a **new identity**, explicitly selected inherited items, funded starting E, compatibility-tested skills and lineage provenance. Avoid hardcoding every future slot like `PhysiologyPolicyV1`, `InheritancePolicyV1` or universal `StrategyV1.decide(observation, public_memory)`: these could block differently structured lineages and accidentally imply public access to private memory.
+
+**Storage:** one SQLite source of truth with transactions for action acceptance, escrow, balanced transfer, mint/burn and event commitment. Immutable blobs store candidate/genome versions; JSONL is an **export**, not competing truth. Design replay against recorded outputs, reducer/rules and PRNG versions, canonical serialization/state hashes. Abstract the *storage wire* when actual scale requires it, not at two-organism M0.
+
+## 7. Smallest truly unavoidable Surlife implementation
+
+1. **Authority and visibility policy:** actor/channel authentication, schema/version checks, private/public observation and capability admission.
+2. **World rules plus E accounting:** deterministic objective evaluator-to-ecology conversion, validated actions, weather later, funded escrow/mint/burn, idempotent settlement and atomic commit.
+3. **Real usage authority:** provider-SDK pre-call reservation, total limit, concurrency/failure/retry accounting and conservative reconciliation; T tokens, M actual money and simulated E recorded separately.
+4. **Genome/skill ownership and trial state:** immutable hashes, private memory roots, public skills, proposal → staged → validated → shadowed → activated/reverted provenance, compatible inheritance.
+5. **Scientific controls:** precommitted tasks/seeds, blinded research holdouts, matched opportunity/energy/true-token experiments, lifecycle cost, negative outcomes, rollback and lineage measures.
+6. **Security admission policy:** independently reviewed external worker confinement, contract validation and researcher-controlled promotion; **reuse** a vetted isolation provider rather than writing a home-made sandbox.
+
+These are responsibilities, **not** six servers. Begin in a small Python repository with logical modules and a single serialized M0 referee writer.
+
+## 8. Components explicitly not worth building now
+
+Do not author a general multi-provider HTTP client, giant agent framework, vector DB, semantic-memory server, distributed event broker, separate evaluator microservice, custom genetic algorithm package, universal game catalog, new multiagent API, universal genome VM, web/desktop tool runtime, custom OS sandbox, separate transaction coordinator or all future social/biological mechanics. Do not transplant Letta, nanobot, mini-SWE, OpenEvolve and Descartes as concurrent core services. Conversely, do not reject mature specialized libraries when concrete evidence shows they reduce total maintenance at M2/M4.
+
+## 9. Dependency integration order with stop/reversal gates
+
+| Milestone | Narrow activity (not implementation authorization) | Gate or measured reversal |
+|---|---|---|
+| **P0-A, no LLM** | Native two-agent world, scripted decisions, SQLite E ledger, canonical event schema | Strict conservation, no duplicate settlement, privacy and replay on crash/restart |
+| **P0-B** | Fixed policies on objective seeded task regimes; optional existing OpenSpiel game | Reference/greedy scores differ nontrivially across regimes; no trivial optimal “idle” exploit |
+| **P0-C** | Fake-model native M1 decision vs restricted mini-SWE wrapper (optionally smolagents) | Same structured intent/observations, zero shell/net, equivalent traces, actual adapter LOC/deps/testing burden |
+| **M1** | Official provider SDK and separate organism memories, host-reserved capped calls, prompt mutation | Reconcile tokens and M including failures; match fixed/prompt controls; human-approved spending only |
+| **M1-P** | Offline GEPA vs naive prompt variations, practice/validation and fully sealed research holdout | Count all mutation and evaluation calls; independent improvement at equal actual lifecycle budget |
+| **M2-P** | Threat model, reviewed disposable code-worker sandbox | No network/host/peer/credential access, CPU/memory/timeout/output enforcement; safety review |
+| **M2** | mini-SWE code author if adapter wins; stage one StrategyV1 candidate, test/shadow/revert | Code never imported in referee; immutable trial/parent records; code vs prompt controls |
+| **M3** | Published skills, bounded priced next-tick interventions, extra TaskPacks | No private memory leakage or E/score conflation; changed ecology tested with ablations |
+| **M4** | Child/genome fork, version-compatible inheritance, population selection | New private identity, capital conservation, diversity and held-out transfer, optional DEAP/OpenEvolve if worthwhile |
+| **M5–M6** | Heterogeneous cognition, reproduction/recombination, environmental construction, Mesa-scale ecology | Unchanged organism wire and authority; novelty/ability gains across new worlds per full lifecycle cost |
+
+**Record at every candidate spike:** upstream tag/commit, dependency lock and license/SBOM, code added to the trusted boundary, actual adapter tests and upgrade work, SDK usage/billing uncertainty, runtime latency and resource measurements on stated hardware, state hashes, security failures and held-out performance. No projected “weeks saved” without evidence. An API compliance test alone is not an economy/sandbox certification.
+
+## 10. Growth path to open-ended evolution
+
+**First two organisms:** different souls, private episode memories and identical trusted action contract; compare scripted and LLM baselines. **Acquired abilities:** code written in disposable workers becomes an immutable, interface-tested skill, independently activated and revisable at controlled cost. **Social learning:** individuals may inspect *published* skills/results; rival prompts/code are untrusted inputs; exchange is priced and ownership explicit. **Environmental manipulation:** priced bounded next-tick world interventions affect the initiator too. **Reproduction:** fork compatible inherited prompt/skill/memory references with new identity, no shared writable state; test parents/offspring at matched capital. **Diverse species/cognitive architectures:** accept different internal worker strategies, model choice, memory/retrieval and skill languages behind the same typed world intent; trusted budgets/privileges remain immutable. **Multiple worlds/open-endedness:** replace WorldBackend/TaskEvaluator with trusted versioned modules, add spatial/social ecologies and evaluate cross-world novel competencies rather than mere population growth or varied autobiographies.
+
+**Premature decisions to avoid:** embedding Python skill objects in the referee, assuming all genomes share one source layout, coupling task score directly to virtual E, one immutable internal reasoning architecture, fixed catalog of 7 future policy interfaces, single provider's message format as the genome schema, unrestricted tool creation or task-side control of economic authority.
