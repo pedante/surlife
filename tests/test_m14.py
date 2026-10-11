@@ -213,3 +213,37 @@ def test_profile_and_seed_must_match_for_valid_replay(tmp_path):
     report["manifest"]["seed"] = 18
     with pytest.raises(ValueError, match="transition mismatch|task metadata mismatch"):
         verify_report(report)
+
+
+
+def test_unexpected_served_model_is_charged_and_excluded_from_model_actions(tmp_path, monkeypatch):
+    import surlife.m14 as m14
+    class SwappedModel:
+        def __init__(self):
+            self.calls = 0
+            self.limit = 1
+            self.model = "dots-studio/dots-3-note-preview:free"
+        @property
+        def remaining(self):
+            return self.limit - self.calls
+        def ask(self, messages, *, mode="action", benchmark_items=None):
+            self.calls += 1
+            return Reply(0, "", "other/unknown-free:free",
+                         {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19})
+    monkeypatch.setattr(m14, "_gateway", lambda _: SwappedModel())
+    result = run_m14(opts(
+        tmp_path, provider="openrouter", benchmark_cases=2,
+        cognition="always", max_requests=1,
+    ))
+    arm = result["summary"]["arms"]["llm"]
+    assert arm["consultations"] == 1
+    assert arm["model_actions"] == 0
+    assert arm["provider_failures"] == 1
+    assert arm["reported_tokens"]["total_tokens"] == 19
+    assert arm["unknown_usage_requests"] == 0
+    saved = json.loads((tmp_path / "m14.json").read_text())
+    fail = saved["arms"]["llm"][0]
+    assert fail["benchmark"]["source"] == "greedy_provider_fallback"
+    assert fail["benchmark"]["failure_reason"] == "routed_model_mismatch"
+    assert fail["scores"]["a"] == fail["benchmark"]["greedy_score"]
+    assert verify_report(saved)["verified"]
