@@ -53,6 +53,7 @@ def test_gemini_benchmark_schema_and_credential_isolation(monkeypatch):
     assert response.model == "gemini-3.8-flash"
     assert response.usage == {
         "prompt_tokens": 43, "completion_tokens": 12, "total_tokens": 61,
+        "thought_tokens": 6,
     }
     assert gateway.remaining == 0
     call = calls[0]
@@ -246,3 +247,86 @@ def test_actual_google_sdk_wiring_is_stateless_v1_and_closes(monkeypatch):
     assert calls["body"]["store"] is False
     assert calls["closed"] is True
     assert "tools" not in calls["body"]
+
+
+
+def test_gemini_higher_default_and_hard_ceiling_for_thinking():
+    from surlife.gemini_gateway import GEMINI_DEFAULT_OUTPUT_TOKENS
+    gateway = GeminiGateway(transport=lambda **kw: answer())
+    assert gateway.max_output_tokens == 4096 == GEMINI_DEFAULT_OUTPUT_TOKENS
+    GeminiGateway(max_output_tokens=8192, transport=lambda **kw: answer())
+    with pytest.raises(ValueError, match="includes thought tokens"):
+        GeminiGateway(max_output_tokens=8193, transport=lambda **kw: answer())
+
+
+def test_incomplete_budget_preserves_thinking_metadata_and_one_charged_call(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "DUMMY")
+    # Mirrors Google's incomplete status after max_output_tokens is consumed
+    # by reasoning before enough visible output is produced.
+    output = SimpleNamespace(output_text=None, model="gemini-3.8-flash",
+                             status="incomplete",
+                             usage=SimpleNamespace(
+                                 total_input_tokens=210,
+                                 total_output_tokens=0,
+                                 total_thought_tokens=512,
+                                 total_tokens=722))
+    calls = []
+    def transport(**kwargs):
+        calls.append(kwargs)
+        return output
+    gw = GeminiGateway(max_requests=1, max_output_tokens=512, transport=transport)
+    with pytest.raises(GatewayError) as err:
+        gw.ask([{"role": "user", "content": "task"}],
+               mode="benchmark", benchmark_items=12)
+    exc = err.value
+    assert exc.reason == "incomplete_interaction"
+    assert exc.usage == {
+        "prompt_tokens": 210, "completion_tokens": 0,
+        "total_tokens": 722, "thought_tokens": 512,
+    }
+    assert exc.generation_diagnostics == {
+        "status": "incomplete", "output_token_limit": 512,
+        "reported_output_tokens": 0, "reported_thought_tokens": 512,
+    }
+    assert gw.calls == 1 and gw.remaining == 0 and len(calls) == 1
+
+
+def test_m14_incomplete_metadata_and_replay_is_consistent(tmp_path, monkeypatch):
+    import surlife.m14 as benchmark
+    monkeypatch.setenv("GOOGLE_API_KEY", "DUMMY")
+    def incomplete(**kwargs):
+        return SimpleNamespace(
+            model="gemini-3.8-flash", output_text=None, status="incomplete",
+            usage=SimpleNamespace(total_input_tokens=210,
+                                  total_output_tokens=0,
+                                  total_thought_tokens=512,
+                                  total_tokens=722))
+    monkeypatch.setattr(benchmark, "GeminiGateway", lambda **kw: GeminiGateway(
+        transport=incomplete, **kw))
+    report = run_m14(arguments(tmp_path, max_output_tokens=512))
+    assert report["verified"]
+    assert report["failure_reasons"] == {"incomplete_interaction": 1}
+    assert report["google_generation"] == {
+        "output_token_limit": 512,
+        "reported_thought_tokens": 512,
+        "unknown_thought_usage": 0,
+    }
+    audit = json.loads((tmp_path / "google.json").read_text())
+    meta = audit["arms"]["llm"][0]["benchmark"]
+    assert meta["generation_diagnostics"]["status"] == "incomplete"
+    assert meta["generation_diagnostics"]["reported_thought_tokens"] == 512
+    assert meta["generation_diagnostics"]["output_token_limit"] == 512
+    assert meta["usage"]["total_tokens"] == 722
+    assert "google_generation" not in audit["summary"]
+    assert verify_report_file(tmp_path / "google.json")["head"] == report["head"]
+
+
+def test_no_incomplete_when_sufficient_budget_and_same_model(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "DUMMY")
+    gw = GeminiGateway(
+        max_output_tokens=4096, transport=lambda **kw: answer(),
+    )
+    actual = gw.ask([{"role": "user", "content": "{}"}],
+                    mode="benchmark", benchmark_items=12)
+    assert actual.mask == 257
+    assert actual.usage["thought_tokens"] == 6
