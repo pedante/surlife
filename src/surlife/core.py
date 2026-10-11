@@ -123,7 +123,7 @@ class Arena:
         start = dict(self.balances)
         active = {a: start[a] > 0 for a in AGENTS}
         task, weather = self._puzzle()
-        # Prevalidate affordability so a failed call never half-mutates the world.
+        # Reject unaffordable external consultations before mutating world state.
         upkeep_due = {"normal": 1, "fog": 2, "drought": 3}[weather]
         for a, n in consultations.items():
             if n:
