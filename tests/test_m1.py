@@ -116,3 +116,24 @@ def test_preflight_for_affordable_cognition():
     weather = arena.observations()["a"].weather
     assert can_consult(arena, "a", weather) in (True, False)
     assert not can_consult(Arena(seed=1, energy=0), "a", weather)
+
+
+def test_inherit_snapshot_across_runs_and_detect_tampering(tmp_path):
+    first = options(tmp_path, run_id="ancestor", ticks=4)
+    run_m1(first, tmp_path / "world.sqlite")
+    snapshot = tmp_path / "souls" / "ancestor" / "a.json"
+    prior = Soul.restore("a", str(snapshot))
+    assert prior.memory
+    assert prior.sha256
+    child = options(tmp_path, run_id="descendant", ticks=2, inherit_soul_a=str(snapshot))
+    result = run_m1(child, tmp_path / "world.sqlite")
+    assert result["verified"]
+    continued = Soul.restore("a", str(tmp_path / "souls" / "descendant" / "a.json"))
+    assert len(continued.memory) >= len(prior.memory)
+    data = json.loads(snapshot.read_text())
+    data["base"] = "unrecorded mutation"
+    snapshot.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="hash mismatch"):
+        Soul.restore("a", str(snapshot))
+    with pytest.raises(ValueError, match="another actor"):
+        Soul.restore("b", str(tmp_path / "souls" / "descendant" / "a.json"))
