@@ -110,6 +110,11 @@ class Journal:
         correct = {"a": 0, "b": 0}
         entered = 0
         attempts = {"a": 0, "b": 0}
+        legal_attempts = {"a": 0, "b": 0}
+        invalid_attempts = {"a": 0, "b": 0}
+        score_ratio_sums = {"a": 0.0, "b": 0.0}
+        total_regret = {"a": 0, "b": 0}
+        consultation_modes: dict[str, int] = {}
         earned = {"a": 0, "b": 0}
         consultations = {"a": 0, "b": 0}
         n = 0
@@ -140,6 +145,8 @@ class Journal:
                     failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
                 if not meta.get("consulted"):
                     continue
+                mode = str(meta.get("mode", "action"))
+                consultation_modes[mode] = consultation_modes.get(mode, 0) + 1
                 provider_requests += 1
                 model = str(meta.get("model", "unknown"))
                 routed_models[model] = routed_models.get(model, 0) + 1
@@ -153,6 +160,14 @@ class Journal:
                 entered += 1
             for a in AGENTS:
                 attempts[a] += int(expected["attempted"][a])
+                if expected["attempted"][a]:
+                    score = expected["scores"][a]
+                    if score is not None and score >= 0:
+                        legal_attempts[a] += 1
+                        score_ratio_sums[a] += score / expected["optimal_score"]
+                        total_regret[a] += expected["optimal_score"] - score
+                    else:
+                        invalid_attempts[a] += 1
                 correct[a] += int(expected["attempted"][a] and expected["scores"][a] == expected["optimal_score"])
                 earned[a] += expected["rewards"][a]
                 consultations[a] += expected["consultations"][a]
@@ -167,4 +182,9 @@ class Journal:
                 "entered": entered, "verified": True,
                 "provider_requests": provider_requests, "reported_tokens": usage_totals,
                 "unknown_usage_requests": usage_missing, "routed_models": routed_models,
-                "failure_reasons": failure_reasons}
+                "failure_reasons": failure_reasons,
+                "legal_attempts": legal_attempts, "invalid_attempts": invalid_attempts,
+                "mean_score_ratio": {a: round(score_ratio_sums[a] / attempts[a], 4)
+                                     if attempts[a] else None for a in AGENTS},
+                "total_legal_regret": total_regret,
+                "consultation_modes": consultation_modes}
