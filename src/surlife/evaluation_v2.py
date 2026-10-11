@@ -89,6 +89,8 @@ def evaluate_snapshot_v2(args) -> dict:
 
     # Explicit preflight BEFORE any model API request.
     if args.provider == "openrouter":
+        if args.model == "openrouter/free":
+            raise ValueError("M1.2 evaluation requires a pinned :free model, not the random free router")
         if not os.environ.get("OPENROUTER_API_KEY", "").strip():
             raise ValueError("OPENROUTER_API_KEY required for --provider openrouter")
         check_model(args.model)
@@ -127,6 +129,10 @@ def evaluate_snapshot_v2(args) -> dict:
                 except GatewayError as error:
                     failure = {"cohort": cohort_index, "task_index": task_index,
                                "variant": label, "reason": error.reason}
+                    break
+                if args.provider == "openrouter" and reply.model != args.model:
+                    failure = {"cohort": cohort_index, "task_index": task_index,
+                               "variant": label, "reason": "routed_model_mismatch"}
                     break
                 score = obs.task.score(reply.mask) if reply.mask is not None else -1
                 pair[label] = {
