@@ -37,6 +37,26 @@ def _exact(task: Task) -> tuple[int, int]:
                        key=lambda m: (task.score(m), -m))
     return optimum_mask, task.score(optimum_mask)
 
+def _dp_mask(task: Task) -> int:
+    """Cheap exact 0/1-knapsack DP: O(number_of_items × integer_capacity).
+
+    This is an unpriced classical computer algorithm reference, not a model.
+    """
+    states: dict[int, tuple[int, int]] = {0: (0, 0)}
+    for index, (cost, reward) in enumerate(task.items):
+        updated = dict(states)
+        for spent, (value, mask) in states.items():
+            new_cost = spent + cost
+            if new_cost > task.capacity:
+                continue
+            proposed = (value + reward, mask | (1 << index))
+            old = updated.get(new_cost)
+            if old is None or (proposed[0], -proposed[1]) > (old[0], -old[1]):
+                updated[new_cost] = proposed
+        states = updated
+    return max(states.values(), key=lambda item: (item[0], -item[1]))[1]
+
+
 
 def make_cases(seed: int, count: int, items: int, profile: str) -> list[dict]:
     if type(seed) is not int or seed < 0:
@@ -73,6 +93,10 @@ def make_cases(seed: int, count: int, items: int, profile: str) -> list[dict]:
         obs = Observation(tick, "normal", cached, START_ENERGY)
         greedy_mask = POLICIES["greedy"](obs, Random(0)).mask
         greedy_score = cached.score(greedy_mask)
+        dp_mask = _dp_mask(cached)
+        dp_score = cached.score(dp_mask)
+        if dp_score != oracle_score:
+            raise AssertionError("DP reference disagrees with exact oracle")
         gap = oracle_score - greedy_score
         if kind == "trap" and (gap <= 0 or gap / oracle_score < 0.12):
             raise AssertionError("constructed headroom task lost its guaranteed Greedy gap")
@@ -80,6 +104,7 @@ def make_cases(seed: int, count: int, items: int, profile: str) -> list[dict]:
             "task": cached, "kind": kind,
             "oracle_mask": oracle_mask, "oracle_score": oracle_score,
             "greedy_mask": greedy_mask, "greedy_score": greedy_score,
+            "dp_mask": dp_mask, "dp_score": dp_score,
             "gap": gap,
         })
     return generated
@@ -167,6 +192,9 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
         elif name == "oracle":
             act_a = Action(cases[arena.tick]["oracle_mask"])
             info["source"] = "unpriced_exact_oracle"
+        elif name == "dp":
+            act_a = Action(cases[arena.tick]["dp_mask"])
+            info["source"] = "unpriced_polynomial_dp"
         elif name == "llm":
             act_a = POLICIES["greedy"](obs["a"], Random(0))
             info["source"] = "greedy_no_inference"
@@ -205,6 +233,8 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
         info.update({
             "greedy_mask": case["greedy_mask"],
             "greedy_score": case["greedy_score"],
+            "dp_mask": case["dp_mask"],
+            "dp_score": case["dp_score"],
             "oracle_mask": case["oracle_mask"],
             "oracle_score": case["oracle_score"],
             "gap": case["gap"], "task_family": case["kind"],
@@ -270,6 +300,8 @@ def _summarize(manifest: dict, arms: dict[str, list[dict]]) -> dict:
             "greedy_optimal": sum(p["headroom"] == 0 for p in opportunities),
             "positive_gap_cases": sum(p["headroom"] > 0 for p in opportunities),
             "greedy_total": total_greedy,
+            "dp_total": sum(r["scores"]["a"] for r in arms["dp"]
+                            if r["scores"]["a"] is not None),
             "oracle_total": total_oracle,
             "greedy_gap": total_oracle - total_greedy,
             "relative_headroom": round(
@@ -278,9 +310,10 @@ def _summarize(manifest: dict, arms: dict[str, list[dict]]) -> dict:
         },
         "arms": arm_stats,
         "note": (
-            "The exact oracle is an UNPRICED diagnostic upper bound, not a "
-            "deployable free policy. Each actual provider consultation costs "
-            "one virtual energy unit, independently of token usage."
+            "The exact oracle is an UNPRICED exponential diagnostic. DP is "
+            "an UNPRICED cheap polynomial-time algorithmic baseline, not "
+            "free physical computation. Each actual provider consultation "
+            "costs one virtual energy unit independent of token usage."
         ),
     }
 
@@ -318,6 +351,7 @@ def run_m14(args) -> dict:
         "request_cap": args.max_requests if gateway else 0,
     }
     arms = {"greedy": _arm(args.seed, cases, "greedy", args),
+            "dp": _arm(args.seed, cases, "dp", args),
             "oracle": _arm(args.seed, cases, "oracle", args)}
     if args.a == "llm":
         # No provider gateway needed when cognition is explicitly disabled.
@@ -367,7 +401,7 @@ def verify_report(report: dict) -> dict:
     cases = make_cases(manifest["seed"], manifest["cases"],
                        manifest["items"], manifest["profile"])
     arms = report.get("arms")
-    expected_arms = {"greedy", "oracle"} | (
+    expected_arms = {"greedy", "dp", "oracle"} | (
         {"llm"} if manifest.get("challenger") == "llm" else set()
     )
     if not isinstance(arms, dict) or set(arms) != expected_arms:
@@ -400,6 +434,8 @@ def verify_report(report: dict) -> dict:
             if any(metadata.get(key) != expected for key, expected in (
                 ("greedy_mask", case["greedy_mask"]),
                 ("greedy_score", case["greedy_score"]),
+                ("dp_mask", case["dp_mask"]),
+                ("dp_score", case["dp_score"]),
                 ("oracle_mask", case["oracle_mask"]),
                 ("oracle_score", case["oracle_score"]),
                 ("gap", case["gap"]),
@@ -412,6 +448,8 @@ def verify_report(report: dict) -> dict:
                 raise ValueError("greedy baseline deviated from deterministic policy")
             if name == "oracle" and record["attempted"]["a"] and record["actions"]["a"] != case["oracle_mask"]:
                 raise ValueError("oracle baseline deviated from optimal policy")
+            if name == "dp" and record["attempted"]["a"] and record["actions"]["a"] != case["dp_mask"]:
+                raise ValueError("DP baseline deviated from computed policy")
             if name == "llm":
                 charged = record["consultations"]["a"]
                 source = metadata.get("source")
