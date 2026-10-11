@@ -137,3 +137,20 @@ def test_inherit_snapshot_across_runs_and_detect_tampering(tmp_path):
         Soul.restore("a", str(snapshot))
     with pytest.raises(ValueError, match="another actor"):
         Soul.restore("b", str(tmp_path / "souls" / "descendant" / "a.json"))
+
+
+def test_replay_with_llm_flags_cannot_trigger_live_provider(tmp_path, monkeypatch, capsys):
+    import sys
+    from surlife.cli import main
+    from surlife.core import RULES_VERSION, START_ENERGY, STAKE
+    from surlife.core import Action
+    with Journal(tmp_path / "world.sqlite") as db:
+        db.create_run("prior", {"rules": RULES_VERSION, "seed": 1,
+                                "start_energy": START_ENERGY, "stake": STAKE})
+        db.append("prior", Arena(1).step({"a": Action(0), "b": Action(None)}))
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(sys, "argv", ["surlife", "--db", str(tmp_path / "world.sqlite"),
+                                      "--a", "llm", "--provider", "openrouter", "--replay", "prior"])
+    main()
+    data = json.loads(capsys.readouterr().out)
+    assert data["verified"] and data["rounds"] == 1
