@@ -242,6 +242,11 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
                         "model": exc.model or gateway.model,
                         "usage": exc.usage,
                     })
+                    details = getattr(exc, "generation_diagnostics", None)
+                    if isinstance(details, dict):
+                        # Already sanitized by the Google gateway; retain
+                        # non-sensitive numeric/status metadata for audit.
+                        info["generation_diagnostics"] = details
                 if gateway.calls > prior:
                     charges["a"] = 1
         else:
@@ -416,6 +421,25 @@ def run_m14(args) -> dict:
             row.get("benchmark", {}).get("source") == "greedy_rate_limited"
             for row in arms.get("llm", [])
         ),
+        # Display-only generation metrics. The versioned report is unchanged,
+        # and independently verifiable against historical stored hashes.
+        "google_generation": ({
+            "output_token_limit": args.max_output_tokens,
+            "reported_thought_tokens": sum(
+                row.get("benchmark", {}).get("usage", {}).get("thought_tokens", 0)
+                for row in arms.get("llm", [])
+                if isinstance(row.get("benchmark", {}).get("usage"), dict)
+                and type(row["benchmark"]["usage"].get("thought_tokens")) is int
+            ),
+            "unknown_thought_usage": sum(
+                row["consultations"]["a"] > 0
+                and (
+                    not isinstance(row.get("benchmark", {}).get("usage"), dict)
+                    or type(row["benchmark"]["usage"].get("thought_tokens")) is not int
+                )
+                for row in arms.get("llm", [])
+            ),
+        } if args.provider == "google" and "llm" in arms else None),
     }
 
 
