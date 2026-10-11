@@ -175,6 +175,15 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
                 try:
                     reply = gateway.ask(_prompt(obs["a"]), mode="benchmark",
                                         benchmark_items=len(obs["a"].task.items))
+                    if args.provider == "openrouter" and reply.model != args.model:
+                        # A free router/provider may substitute a different
+                        # model. Never mix unannounced model swaps into results.
+                        mismatch = GatewayError(
+                            "served benchmark model differs from requested model",
+                            "routed_model_mismatch",
+                        )
+                        mismatch.model, mismatch.usage = reply.model, reply.usage
+                        raise mismatch
                     act_a = Action(reply.mask)
                     info.update({
                         "source": "llm", "status": "ok",
