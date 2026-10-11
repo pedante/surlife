@@ -224,7 +224,7 @@ def _arm(seed: int, cases: list[dict], name: str, args, gateway=None) -> list[di
                     # HTTP 429 may be a short-window, daily, or upstream quota.
                     # Stop all further calls in this run rather than wasting
                     # requests. Do not guess when the provider will reset.
-                    if exc.reason == "http_429":
+                    if exc.reason in ("http_429", "provider_error_429"):
                         rate_limited = True
                     info.update({
                         "source": "greedy_provider_fallback", "status": "failed",
