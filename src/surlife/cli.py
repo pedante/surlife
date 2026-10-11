@@ -1,4 +1,4 @@
-"""Run the offline Surlife M0 duel: python -m surlife.cli --seed 7 --ticks 12."""
+"""Run Surlife M0 scripted and M1 bounded prompt-soul experiments."""
 
 import argparse
 import json
@@ -10,12 +10,19 @@ from .storage import Journal
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Surlife M0: deterministic two-organism duel (no LLM calls)")
+    parser = argparse.ArgumentParser(description="Surlife: offline M0 or bounded M1 with OpenRouter free models")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--ticks", type=int, default=12)
-    parser.add_argument("--a", choices=sorted(POLICIES), default="greedy")
+    parser.add_argument("--a", choices=sorted([*POLICIES, "llm"]), default="greedy")
     parser.add_argument("--b", choices=sorted(POLICIES), default="optimal")
     parser.add_argument("--db", default="out/surlife.sqlite")
+    parser.add_argument("--provider", choices=("fake", "openrouter"), default="fake")
+    parser.add_argument("--model", default="openrouter/free", help="openrouter/free or a pinned :free model")
+    parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
+    parser.add_argument("--max-output-tokens", type=int, default=128)
+    parser.add_argument("--souls-dir", default="out/souls")
+    parser.add_argument("--soul-a", help="optional custom initial soul text (LLM A)")
+    parser.add_argument("--soul-b", help="optional custom initial soul text (LLM B)")
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--replay", metavar="RUN_ID", help="verify saved events without running new turns")
     args = parser.parse_args()
@@ -23,6 +30,14 @@ def main() -> None:
         parser.error("--seed and --ticks must be nonnegative")
     path = Path(args.db)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if args.a == "llm" or args.b == "llm":
+        from .runner import run_m1
+        try:
+            report = run_m1(args, path)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return
     with Journal(path) as journal:
         if args.replay:
             print(json.dumps(journal.replay(args.replay), indent=2, sort_keys=True))
