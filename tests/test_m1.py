@@ -264,7 +264,7 @@ def test_openrouter_reasoning_configuration(monkeypatch, reasoning_mode, expecte
     gateway = OpenRouterGateway(reasoning=reasoning_mode, transport=transport)
     assert gateway.ask([{"role": "user", "content": "one puzzle"}]).mask == 0
     assert seen[0].get("reasoning") == expected_reasoning
-    assert seen[0]["max_completion_tokens"] == 512
+    assert seen[0]["max_tokens"] == 512
 
 
 def test_gateway_rejects_unknown_reasoning_modes():
@@ -328,6 +328,7 @@ def test_free_instruct_default_and_structured_output_routing(monkeypatch):
     assert sent["response_format"] == ACTION_SCHEMA
     assert sent["response_format"]["json_schema"]["strict"] is True
     assert sent["provider"]["require_parameters"] is True
+    assert sent["max_tokens"] == 512
     assert sent["reasoning"] == {"enabled": False}
     assert "PRIVATE_DUMMY" not in json.dumps(sent)
 
