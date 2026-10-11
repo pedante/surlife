@@ -14,9 +14,10 @@ from typing import Callable
 AGENTS = ("a", "b")
 WORLD = "world"
 ESCROW = "escrow"
-RULES_VERSION = "m0-v1"
+RULES_VERSION = "m0-v2"
 START_ENERGY = 30
 STAKE = 2
+COGNITION_COST = 1
 
 
 @dataclass(frozen=True)
@@ -112,15 +113,15 @@ class Arena:
         task, weather = self._puzzle()
         return {a: Observation(self.tick, weather, task, self.balances[a]) for a in AGENTS}
 
-    def step(self, actions: dict[str, Action]) -> dict:
-        """Deterministic synchronous settlement; account movements are double-entry.
-
-        Invalid submitted masks lose to any legal mask. There are no LLMs, hidden
-        rewards to query, asynchronous deadlines, weather purchases or code edits.
-        """
+    def step(self, actions: dict[str, Action], consultations: dict[str, int] | None = None) -> dict:
+        """Settle work independently; a duel is optional. Only the referee moves energy."""
         if set(actions) != set(AGENTS) or any(not isinstance(v, Action) for v in actions.values()):
             raise ValueError("exactly one Action required for each actor")
+        consultations = consultations or {}
+        if any(a not in AGENTS or type(n) is not int or n not in (0, 1) for a, n in consultations.items()):
+            raise ValueError("consultations must be 0/1 per actor")
         start = dict(self.balances)
+        active = {a: start[a] > 0 for a in AGENTS}
         task, weather = self._puzzle()
         transfers: list[dict] = []
 
@@ -134,43 +135,59 @@ class Arena:
             if amount:
                 transfers.append({"from": src, "to": dst, "amount": amount, "kind": kind})
 
-        # Phase 1: periodic world mint, followed by maintenance (both deterministic).
+        # Actors that start a tick at zero remain dead: no passive resurrection.
         if self.tick % 4 == 0:
-            for actor in AGENTS:
-                move(WORLD, actor, 1, "mint")
+            for a in AGENTS:
+                if active[a]:
+                    move(WORLD, a, 1, "mint")
         upkeep = {"normal": 1, "fog": 2, "drought": 3}[weather]
-        for actor in AGENTS:
-            move(actor, WORLD, min(upkeep, self.balances[actor]), "upkeep")
+        for a in AGENTS:
+            if active[a]:
+                move(a, WORLD, min(upkeep, self.balances[a]), "upkeep")
+        for a in AGENTS:
+            if consultations.get(a, 0):
+                if not active[a] or self.balances[a] < COGNITION_COST:
+                    raise ValueError("consultation not affordable after upkeep")
+                move(a, WORLD, COGNITION_COST, "cognition")
 
-        # Phase 2: both must enter and afford equal escrowed stakes.
-        entered = all(actions[a].mask is not None and self.balances[a] >= self.stake for a in AGENTS)
+        # Each task earns its own world payment, even if the opponent waits or dies.
         scores: dict[str, int | None] = {a: None for a in AGENTS}
+        rewards = {a: 0 for a in AGENTS}
+        attempted = {a: active[a] and actions[a].mask is not None for a in AGENTS}
+        for a in AGENTS:
+            if not attempted[a]:
+                continue
+            score = task.score(actions[a].mask)
+            scores[a] = score
+            reward = (3 if score == task.optimum else
+                      2 if score >= 0 and 5 * score >= 4 * task.optimum else
+                      1 if score > 0 else 0)
+            rewards[a] = reward
+            move(WORLD, a, reward, "work_reward")
+
+        entered = all(attempted[a] and self.balances[a] >= self.stake for a in AGENTS)
         winner: str | None = None
         if entered:
-            for actor in AGENTS:
-                move(actor, ESCROW, self.stake, "stake")
-                scores[actor] = task.score(actions[actor].mask)
+            for a in AGENTS:
+                move(a, ESCROW, self.stake, "stake")
             if scores["a"] != scores["b"]:
                 winner = "a" if scores["a"] > scores["b"] else "b"
                 move(ESCROW, winner, self.stake * 2, "win")
             else:
-                for actor in AGENTS:
-                    move(ESCROW, actor, self.stake, "refund")
+                for a in AGENTS:
+                    move(ESCROW, a, self.stake, "refund")
 
         if sum(self.balances.values()) != 0 or any(self.balances[a] < 0 for a in (*AGENTS, ESCROW)):
             raise AssertionError("ledger conservation failure")
         result = {
-            "tick": self.tick,
-            "weather": weather,
-            "task": task.as_dict(),
+            "tick": self.tick, "weather": weather, "task": task.as_dict(),
             "optimal_score": task.optimum,
             "actions": {a: actions[a].mask for a in AGENTS},
-            "scores": scores,
-            "winner": winner,
-            "entered": entered,
-            "before": start,
-            "after": dict(self.balances),
-            "transfers": transfers,
+            "consultations": {a: consultations.get(a, 0) for a in AGENTS},
+            "attempted": attempted, "scores": scores, "rewards": rewards,
+            "alive": {a: self.balances[a] > 0 for a in AGENTS},
+            "winner": winner, "entered": entered,
+            "before": start, "after": dict(self.balances), "transfers": transfers,
         }
         self.tick += 1
         return result
@@ -182,4 +199,4 @@ def choose_actions(arena: Arena, names: dict[str, str]) -> dict[str, Action]:
         if names[a] not in POLICIES:
             raise ValueError(f"unknown policy: {names[a]}")
     # Independent deterministic policy RNG; no policy gets the opponent's memory.
-    return {a: POLICIES[names[a]](obs[a], Random(arena.seed * 1_000_003 + arena.tick * 9_176 + (1 if a == "a" else 2))) for a in AGENTS}
+    return {a: (POLICIES[names[a]](obs[a], Random(arena.seed * 1_000_003 + arena.tick * 9_176 + (1 if a == "a" else 2))) if obs[a].own_energy else Action(None)) for a in AGENTS}
