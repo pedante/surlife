@@ -128,6 +128,9 @@ class SurlifeParallelEnv(ParallelEnv[str, dict[str, Any], int]):
             raise ValueError("invalid PettingZoo action value")
         actions = {agent: int(value) for agent, value in actions.items()}
         previous = list(self.agents)
+        # Capture CURRENT observations. An organism that dies in this step
+        # must not receive the following (still hidden) task in its final view.
+        previous_views = self.referee.observations()
         # Every non-active participant remains dead in the inner referee.
         admitted = {
             agent: (Action(None) if agent not in actions or
@@ -163,13 +166,11 @@ class SurlifeParallelEnv(ParallelEnv[str, dict[str, Any], int]):
             if not (terminations[agent] or truncations[agent])
         ]
         next_observations = self.referee.observations() if self.agents else {}
-        # PettingZoo Parallel API returns terminal observations for prior live
-        # agents as well. They expose ONLY the player's own energy and public
-        # task data, never a rival's private state or the ledger authority.
+        # PettingZoo returns terminal observations for agents exiting this
+        # step. Keep their prior view rather than leaking the next hidden task.
         observations = {
             agent: self._view(agent, next_observations[agent])
-            if agent in self.agents
-            else self._view(agent, self.referee.observations()[agent])
+            if agent in self.agents else self._view(agent, previous_views[agent])
             for agent in previous
         }
         return observations, rewards, terminations, truncations, infos
