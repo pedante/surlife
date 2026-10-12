@@ -51,6 +51,14 @@ def main() -> None:
                         help="M1.10 shared-model-response cognition tournament in M1.9 worlds")
     parser.add_argument("--m111", action="store_true",
                         help="M1.11 offline TaskPack-specific inherited cognition and holdouts")
+    parser.add_argument("--m20", action="store_true",
+                        help="M2.0 persistent shared-resource ecology (offline only)")
+    parser.add_argument("--m20-a", choices=("extractive", "steward", "opportunist", "rest"),
+                        default="steward", help="M2.0 organism A trusted policy")
+    parser.add_argument("--m20-b", choices=("extractive", "steward", "opportunist", "rest"),
+                        default="extractive", help="M2.0 organism B trusted policy")
+    parser.add_argument("--verify-m20-file",
+                        help="M2.0 offline verify both mirrored ecology episodes and ledger")
     parser.add_argument("--m111-train-bank", action="append", default=[],
                         help="M1.11 verified M1.10 training response-bank report (repeat 1-4)")
     parser.add_argument("--m111-holdout-bank", action="append", default=[],
@@ -122,10 +130,18 @@ def main() -> None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
     if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.m111 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file or args.verify_m111_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111, args.m20)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_m20_file:
+        from .m20 import verify_m20_file
+        try:
+            print(json.dumps(verify_m20_file(args.verify_m20_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_m111_file:
         from .m111 import verify_m111_file
         try:
@@ -197,6 +213,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m20:
+        from .m20 import run_m20
+        try:
+            print(json.dumps(run_m20(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return
