@@ -53,13 +53,15 @@ def test_candidate_is_owned_staged_and_gated():
 def test_holdout_is_disjoint_and_has_no_direct_candidate_authority():
     report = build_report(29, 24, "evolving", "frozen", 8)
     episode = report["episodes"]["primary"]
-    live = set()
     from surlife.m21 import digest
+    live = {digest(row["task"]) for row in episode["ticks"]}
+    trial_hashes = []
     for row in episode["ticks"]:
-        live.add(digest(row["task"]))
         for mutation in row["mutations"]:
             if mutation["decision"] == "trial":
                 assert mutation["task_hash"] not in live
+                trial_hashes.append(mutation["task_hash"])
+    assert len(trial_hashes) == len(set(trial_hashes))
     staged = next((i for row in episode["ticks"] for i in row["mutations"]
                    if i["decision"] == "staged"), None)
     if staged:
