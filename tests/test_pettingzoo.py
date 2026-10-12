@@ -82,6 +82,21 @@ def test_spaces_validate_observations_and_action_wait():
     assert env.agents == []
 
 
+def test_terminal_observation_never_discloses_next_hidden_task():
+    # A finished organism must not receive a puzzle from tick 1.
+    env = SurlifeParallelEnv(population=2, seed=17, max_cycles=1)
+    initial, _ = env.reset(seed=17)
+    terminal, rewards, terminations, truncations, _ = env.step({
+        agent: WAIT_ACTION for agent in env.agents
+    })
+    assert not env.agents
+    assert set(terminal) == set(initial)
+    for agent in terminal:
+        assert np.array_equal(terminal[agent]["items"], initial[agent]["items"])
+        assert terminal[agent]["tick"] == initial[agent]["tick"]
+        assert terminations[agent] or truncations[agent]
+
+
 def test_finished_organism_is_not_resurrected():
     env = SurlifeParallelEnv(population=3, max_cycles=6)
     env.reset()
