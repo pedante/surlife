@@ -8,6 +8,8 @@ from random import Random
 
 import numpy as np
 import pytest
+
+pytest.importorskip("pettingzoo", reason="optional PettingZoo evaluation extra")
 from pettingzoo.test import parallel_api_test
 from pettingzoo.utils.env import ParallelEnv
 
