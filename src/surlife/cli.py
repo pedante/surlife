@@ -43,6 +43,14 @@ def main() -> None:
                         help="M1.6 experience-adaptive consultation policy")
     parser.add_argument("--m17", action="store_true",
                         help="M1.7 inheritance and matched held-out policy comparison")
+    parser.add_argument("--m18", action="store_true",
+                        help="M1.8 single-response-bank multi-policy cognition tournament")
+    parser.add_argument("--m18-bank-in",
+                        help="M1.8 verified prior report; replay its bank with zero API calls")
+    parser.add_argument("--m18-virtual-cap", type=int, default=4,
+                        help="M1.8 simulated maximum consultations per arm (default 4)")
+    parser.add_argument("--verify-m18-file",
+                        help="offline verify M1.8 bank, arm decisions, learning and ledger")
     parser.add_argument("--train-report", action="append", default=[],
                         help="M1.7 verified M1.6 training report; repeat up to four times")
     parser.add_argument("--holdout-seeds", default="101,103",
@@ -84,12 +92,20 @@ def main() -> None:
                       else "dots-studio/dots-3-note-preview:free")
     if args.max_output_tokens is None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
-    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file):
+    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_m18_file:
+        from .m18 import verify_m18_file
+        try:
+            print(json.dumps(verify_m18_file(args.verify_m18_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_adaptive_file:
         from .m16 import verify_m16_file
         try:
@@ -129,6 +145,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m18:
+        from .m18 import run_m18
+        try:
+            print(json.dumps(run_m18(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return
