@@ -1,0 +1,35 @@
+name: M1.11 TaskPack cognition inheritance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  inheritance-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install offline tests
+        run: python -m pip install -e '.[test]'
+      - name: Test M1.11 learning, holdout gate and replay
+        run: pytest -q tests/test_m111.py
+      - name: Build four independent M1.10 fake banks
+        run: |
+          for seed in 17 19 101 103; do
+            surlife --m110 --provider fake --a llm --b greedy --seed "$seed" --benchmark-cases 4 --benchmark-items 9 --m110-pack mixed --max-requests 4 --m110-virtual-cap 4 --benchmark-out "out/m110-m111-$seed.json"
+          done
+      - name: Evaluate inherited cognition without provider requests
+        run: |
+          surlife --m111 --provider fake --a llm --b greedy --m111-train-bank out/m110-m111-17.json --m111-train-bank out/m110-m111-19.json --m111-holdout-bank out/m110-m111-101.json --m111-holdout-bank out/m110-m111-103.json --m111-virtual-cap 4 --benchmark-out out/m111-ci.json --m111-promote-policy-out out/m111-ci-policy.json
+          surlife --verify-m111-file out/m111-ci.json
+          test ! -e out/m111-ci-policy.json
