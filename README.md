@@ -137,6 +137,19 @@ semantics are incompatible. The benchmark does **not** imply LLM
 superiority or a persistent artificial-life ecosystem. See
 [M110.md](M110.md).
 
+## TaskPack cognition inheritance (M1.11)
+
+`surlife --m111` aggregates separate bounded numeric cognition memories
+for **coverage** and **synergy**, trained from independently verified
+M1.10 response banks. It evaluates inherited against fresh cognition
+on disjoint held-out banks with identical model answers, **without any
+new API calls**. A policy snapshot is promoted only when it improves
+final energy versus **both** fresh adaptation and no-inference
+marginal-gain Greedy, with no seed-level regressions, provider errors or
+legality regressions. Beam search and exact oracle remain visible
+unpriced references. Old knapsack policies are not mixed into TaskPack
+learning. See [M111.md](M111.md).
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
