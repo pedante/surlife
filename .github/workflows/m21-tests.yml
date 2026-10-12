@@ -1,0 +1,29 @@
+name: M2.1 offline prompt mutation and audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  m21-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install tests
+        run: python -m pip install -e '.[test]'
+      - name: Test prompt-mutation safety and replay
+        run: pytest -q tests/test_m21.py
+      - name: Run offline fake evolution and verify JSON
+        run: |
+          surlife --m21 --provider fake --seed 17 --ticks 24 --max-requests 8 --benchmark-out out/m21-ci.json
+          surlife --verify-m21-file out/m21-ci.json
