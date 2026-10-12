@@ -16,7 +16,7 @@ jobs:
         python-version: ["3.10", "3.13"]
     env:
       MSWEA_SILENT_STARTUP: "1"
-      MSWEA_GLOBAL_CONFIG_DIR: "${{ runner.temp }}/isolated-mini-swe-e04"
+      MSWEA_GLOBAL_CONFIG_DIR: "/tmp/surlife-e04-mini-swe"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
