@@ -160,6 +160,17 @@ legality regressions. Beam search and exact oracle remain visible
 unpriced references. Old knapsack policies are not mixed into TaskPack
 learning. See [M111.md](M111.md).
 
+## M2.1 — Offline organism-owned prompt-mutation tournament
+
+`surlife --m21` introduces an opt-in, **scripted-fake** proof of the
+mutation lifecycle: two separately versioned souls, a bounded organism-associated
+reflection/trial/activation policy, charged consultation turns, parent/candidate
+hashes, objective holdout checks, a frozen control, and full offline replay.
+It makes **zero real model calls and proves no autonomous LLM learning**.
+This is the engineering bridge toward real prompt and isolated Python-module
+evolution—not an extension of the stock/soil world.
+See [M21.md](M21.md) for commands, limitations and tests.
+
 ## First persistent shared-resource world (M2.0)
 
 `surlife --m20` adds a new **offline persistent ecology**, separate
