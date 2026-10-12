@@ -14,12 +14,14 @@ from pathlib import Path
 
 from .m14 import make_cases
 from .m16 import (
-    POLICY_VERSION, build_report, initial_state, validate_state,
-    verify_adaptive_report, write_report,
+    POLICY_VERSION, LEGACY_POLICY_VERSION, _policy_identity,
+    build_report, initial_state, validate_state, verify_adaptive_report,
+    write_report,
 )
 from .storage import canonical
 
-EXPERIMENT = "m17-v1"
+EXPERIMENT = "m17-v2"
+LEGACY_EXPERIMENT = "m17-v1"
 MAX_TRAIN = 4
 MAX_HOLDOUT = 4
 MAX_LIVE_CALLS = 24
@@ -58,16 +60,31 @@ def _state_delta(report: dict) -> dict:
     return change
 
 
-def aggregate_training(reports: list[dict]) -> dict:
+def aggregate_training(reports: list[dict], *,
+                       legacy: bool = False) -> dict:
     if not 1 <= len(reports) <= MAX_TRAIN:
         raise ValueError("M1.7 requires 1 to 4 training reports")
     result = initial_state()
     fingerprints: set[str] = set()
+    identity = None
     for report in reports:
         verify_adaptive_report(report)
-        if report["manifest"]["experiment"] != POLICY_VERSION:
-            raise ValueError("training report has wrong protocol")
-        hashes = _task_hashes(report["manifest"])
+        manifest = report["manifest"]
+        expected = LEGACY_POLICY_VERSION if legacy else POLICY_VERSION
+        if manifest["experiment"] != expected:
+            raise ValueError(f"M1.7 requires {expected} training reports; "
+                             "rerun --m16 to train with the new policy semantics")
+        if not legacy:
+            current = _report_identity(report)
+            if identity is not None and current != identity:
+                raise ValueError("mixed training providers, models or generation settings")
+            identity = current
+            if report["summary"]["arms"]["llm"]["provider_failures"]:
+                raise ValueError("provider failures in training; run healthy M1.6 cohorts "
+                                 "rather than treating outages as model feedback")
+            if not report["summary"]["arms"]["llm"]["model_actions"]:
+                raise ValueError("training report contains no successful model decisions")
+        hashes = _task_hashes(manifest)
         if fingerprints & hashes:
             raise ValueError("duplicate puzzle in training reports")
         fingerprints |= hashes
@@ -78,16 +95,37 @@ def aggregate_training(reports: list[dict]) -> dict:
     return validate_state(result)
 
 
-def _scoring(episodes: list[dict]) -> dict:
+def _report_identity(report: dict) -> dict:
+    """The exact consulting capability: never mix fake with real experience."""
+    m = report["manifest"]
+    gen = m.get("generation")
+    if not isinstance(gen, dict) or set(gen) != {"reasoning", "max_output_tokens"}:
+        raise ValueError("training/evaluation report lacks generation configuration")
+    if gen["reasoning"] not in ("off", "low", "auto"):
+        raise ValueError("unsupported model reasoning configuration")
+    if type(gen["max_output_tokens"]) is not int or not 16 <= gen["max_output_tokens"] <= 8192:
+        raise ValueError("invalid model output token budget")
+    provider = m.get("provider")
+    if provider not in ("fake", "google", "openrouter"):
+        raise ValueError("unreviewed training provider")
+    model = "surlife/fake-model" if provider == "fake" else m.get("requested_model")
+    if not isinstance(model, str) or not 1 <= len(model) <= 140:
+        raise ValueError("training model identity missing")
+    return {"provider": provider, "model": model, "generation": gen}
+
+
+def _legacy_scoring(episodes: list[dict]) -> dict:
+    """Unchanged M1.7 v1 acceptance algorithm for old reports' audit only."""
     improvements = []
     out = []
     for entry in episodes:
-        fresh, inherited = entry["fresh"]["summary"]["arms"]["llm"], entry["inherited"]["summary"]["arms"]["llm"]
-        diff = inherited["energy"] - fresh["energy"]
-        improvements.append(diff)
+        fresh = entry["fresh"]["summary"]["arms"]["llm"]
+        inherited = entry["inherited"]["summary"]["arms"]["llm"]
+        delta = inherited["energy"] - fresh["energy"]
+        improvements.append(delta)
         out.append({
             "seed": entry["seed"], "fresh_energy": fresh["energy"],
-            "inherited_energy": inherited["energy"], "energy_delta": diff,
+            "inherited_energy": inherited["energy"], "energy_delta": delta,
             "fresh_score": fresh["task_score_sum"],
             "inherited_score": inherited["task_score_sum"],
             "fresh_consultations": fresh["consultations"],
@@ -112,10 +150,81 @@ def _scoring(episodes: list[dict]) -> dict:
     }
 
 
+def _scoring(episodes: list[dict]) -> dict:
+    """Promotion must beat BOTH the fresh adaptive policy and no-LLM Greedy.
+
+    Positive aggregate advantage alone is insufficient: no seed may regress
+    against either control, and provider/legality failures veto promotion.
+    """
+    rows, diffs_fresh, diffs_greedy = [], [], []
+    for entry in episodes:
+        fresh = entry["fresh"]["summary"]["arms"]["llm"]
+        inherited = entry["inherited"]["summary"]["arms"]["llm"]
+        greedy = entry["fresh"]["summary"]["arms"]["greedy"]
+        # Audit cross-report baseline identity; they share generated tasks.
+        if greedy != entry["inherited"]["summary"]["arms"]["greedy"]:
+            raise ValueError("held-out Greedy controls are not matched")
+        gain_fresh = inherited["energy"] - fresh["energy"]
+        gain_greedy = inherited["energy"] - greedy["energy"]
+        diffs_fresh.append(gain_fresh)
+        diffs_greedy.append(gain_greedy)
+        rows.append({
+            "seed": entry["seed"], "fresh_energy": fresh["energy"],
+            "inherited_energy": inherited["energy"], "greedy_energy": greedy["energy"],
+            "energy_delta": gain_fresh, "energy_delta_vs_greedy": gain_greedy,
+            "fresh_score": fresh["task_score_sum"],
+            "inherited_score": inherited["task_score_sum"],
+            "greedy_score": greedy["task_score_sum"],
+            "fresh_consultations": fresh["consultations"],
+            "inherited_consultations": inherited["consultations"],
+            "fresh_failures": fresh["provider_failures"],
+            "inherited_failures": inherited["provider_failures"],
+            "fresh_invalid": fresh["invalid"], "inherited_invalid": inherited["invalid"],
+            "greedy_invalid": greedy["invalid"],
+        })
+    failures = sum(row["fresh_failures"] + row["inherited_failures"] for row in rows)
+    reasons = []
+    if failures:
+        reasons.append("provider_failures")
+    if any(row["inherited_invalid"] > min(row["fresh_invalid"], row["greedy_invalid"])
+           for row in rows):
+        reasons.append("legality_regression")
+    if any(diff < 0 for diff in diffs_fresh):
+        reasons.append("regression_vs_fresh")
+    if sum(diffs_fresh) <= 0:
+        reasons.append("no_positive_gain_vs_fresh")
+    if any(diff < 0 for diff in diffs_greedy):
+        reasons.append("regression_vs_greedy")
+    if sum(diffs_greedy) <= 0:
+        reasons.append("no_positive_gain_vs_greedy")
+    return {
+        "cohorts": rows,
+        "total_energy_gain": sum(diffs_fresh),
+        "total_energy_gain_vs_greedy": sum(diffs_greedy),
+        "wins": sum(x > 0 for x in diffs_fresh),
+        "losses": sum(x < 0 for x in diffs_fresh),
+        "ties": sum(x == 0 for x in diffs_fresh),
+        "provider_failures": failures,
+        "rejection_reasons": reasons,
+        "accepted": bool(rows and not reasons),
+        "note": (
+            "Dual-control acceptance: no regressions and positive aggregate "
+            "energy advantage versus BOTH cold-start adaptation and "
+            "no-inference Greedy, with no provider failures or legality "
+            "regressions. A fake provider copies Greedy decisions and must "
+            "never qualify via saved consultation costs alone. "
+            "Independent real model calls remain stochastic, so a passed "
+            "heuristic gate is not statistical evidence of generalization."
+        ),
+    }
+
 def _head(report: dict) -> str:
+    names = ["protocol", "training", "policy", "holdout_seeds",
+             "episodes", "summary"]
+    if report["protocol"] == EXPERIMENT:
+        names.append("identity")
     return hashlib.sha256(canonical({
-        key: report[key] for key in ("protocol", "training", "policy",
-                                     "holdout_seeds", "episodes", "summary")
+        key: report[key] for key in names
     }).encode("utf-8")).hexdigest()
 
 
@@ -151,6 +260,10 @@ def build_m17(args, training: list[dict]) -> dict:
     if len(seeds) != len(args.holdout_seeds.split(",")):
         raise ValueError("--holdout-seeds must be comma-separated integers")
     trained = aggregate_training(training)
+    identity = _report_identity(training[0])
+    if identity != _policy_identity(args):
+        raise ValueError("M1.7 training provider/model/config differs from evaluation; "
+                         "fake training cannot authorize Google or OpenRouter inference")
     _validate_sets(training, seeds, args.benchmark_cases,
                    args.benchmark_items, args.benchmark_profile)
     if args.provider != "fake" and 2 * len(seeds) * args.max_requests > MAX_LIVE_CALLS:
@@ -165,7 +278,7 @@ def build_m17(args, training: list[dict]) -> dict:
         inherited = build_report(child, trained)
         episodes.append({"seed": seed, "fresh": fresh, "inherited": inherited})
     report = {"protocol": EXPERIMENT, "training": training,
-              "policy": trained, "holdout_seeds": seeds,
+              "policy": trained, "identity": identity, "holdout_seeds": seeds,
               "episodes": episodes, "summary": _scoring(episodes)}
     report["head"] = _head(report)
     verify_m17(report)
@@ -173,12 +286,16 @@ def build_m17(args, training: list[dict]) -> dict:
 
 
 def verify_m17(report: dict) -> dict:
-    if not isinstance(report, dict) or report.get("protocol") != EXPERIMENT:
+    if not isinstance(report, dict):
+        raise ValueError("invalid M1.7 report")
+    version = report.get("protocol")
+    if version not in (EXPERIMENT, LEGACY_EXPERIMENT):
         raise ValueError("unsupported M1.7 report")
     training = report.get("training")
     if not isinstance(training, list):
         raise ValueError("training reports missing")
-    policy = aggregate_training(training)
+    legacy = version == LEGACY_EXPERIMENT
+    policy = aggregate_training(training, legacy=legacy)
     if policy != report.get("policy"):
         raise ValueError("inherited policy does not match training")
     episodes = report.get("episodes")
@@ -188,6 +305,9 @@ def verify_m17(report: dict) -> dict:
     if not episodes:
         raise ValueError("empty held-out comparison")
     reference = episodes[0]["fresh"]["manifest"]
+    identity = None if legacy else _report_identity(training[0])
+    if not legacy and identity != report.get("identity"):
+        raise ValueError("M1.7 provider/model provenance differs from training")
     _validate_sets(training, seeds, reference["cases"], reference["items"],
                    reference["profile"])
     for seed, entry in zip(seeds, episodes):
@@ -207,7 +327,11 @@ def verify_m17(report: dict) -> dict:
                ("cases", "items", "profile", "requested_model", "provider",
                 "request_cap")):
             raise ValueError("inconsistent evaluation cohort settings")
-    if _scoring(episodes) != report.get("summary"):
+        if not legacy and (_report_identity(fresh) != identity or
+                           _report_identity(inherited) != identity):
+            raise ValueError("evaluation provider/model/config differs from training")
+    expected = _legacy_scoring(episodes) if legacy else _scoring(episodes)
+    if expected != report.get("summary"):
         raise ValueError("M1.7 summary mismatch")
     if _head(report) != report.get("head"):
         raise ValueError("M1.7 report digest mismatch")
@@ -231,7 +355,9 @@ def run_m17(args) -> dict:
     if report["summary"]["accepted"] and args.promote_policy_out:
         snapshot = {"version": POLICY_VERSION, "state": report["policy"],
                     "training_heads": [r["head"] for r in training],
-                    "gate_report_head": report["head"]}
+                    "gate_report_head": report["head"],
+                    "evaluation_protocol": EXPERIMENT,
+                    **report["identity"]}
         write_report(snapshot, args.promote_policy_out)
         promoted = True
     return {"verified": True, "head": report["head"],
