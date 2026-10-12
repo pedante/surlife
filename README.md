@@ -1,6 +1,16 @@
 # Igor Life / Primordial Arena
 
 *Artificial life fights for survival.*
+
+## Project direction — evolving programs, not an ecology game (12 October 2026)
+
+**Core ambition:** organisms fight to survive and become more efficient by spending *scarce, host-metered LLM calls* on evolving their own prompts, memory, and eventually tested Python code/modules. Winning virtual energy can support more work and experimentation, but never overrides independent real-provider request/currency limits. Improvement must be measured against fixed and strong cheap baselines at matched total budgets.
+
+**Existing experiments:** M1.x already has bounded model consultations, pending prompt hypotheses and evaluation controls; M2.0 introduces deterministic shared stock/soil/harvest actions as **one optional experiment**, not Surlife's defining world or intended future product. **We are not building an agricultural or spatial world simulator.**
+
+**Next:** [M2.1 autonomous prompt-mutation tournament](foundation/EVOLUTION_FIRST.md), followed by **M2.2 isolated Python-module mutation**, priced environmental interventions (weather as a common, bounded modifier), and ultimately inheritance. Read [ADR-0002](foundation/decisions/ADR-0002-evolution-first.md) for the explicit direction change and safety/measurement requirements. **Neither M2.1 nor M2.2 is implemented yet.**
+
+
 ## First runnable prototype (M0)
 
 **A small offline, deterministic arena is now implemented in this branch.** It has two scripted organisms, a scored puzzle duel, virtual-energy transfers, a transactional SQLite journal, replay and automated tests. **It does not yet implement LLM organisms, evolving prompts, generated code or reproduction.**

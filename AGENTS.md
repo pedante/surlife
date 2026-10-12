@@ -1,6 +1,16 @@
 # Surlife — instructions for coding and research agents
 
-Surlife is an **unimplemented artificial-life research proposal**. Do not confuse design documents or examples with validated software.
+Surlife has **implemented bounded research prototypes (M0–M2.0)**, but has **not** demonstrated autonomous prompt-and-code evolution, population survival or open-ended intelligence. Do not confuse hypotheses, illustrative files, scripted organisms, or fake-model runs with validated evolving software.
+
+## Project compass (decision 2026-10-12)
+**Evolving organisms are the research target; the world is only a compact competitive test harness.** Organisms should learn to allocate scarce LLM calls to modify and test their own prompt, memory and eventually Python strategy modules. M2.0 stock/soil/harvest is an optional, versioned ecology fixture, not a new requirement to build a detailed world. **No further soil/harvest/movement/world-simulation milestones by default.** See [ADR-0002](foundation/decisions/ADR-0002-evolution-first.md) and [evolution-first implementation track](foundation/EVOLUTION_FIRST.md).
+
+Prioritize M2.1 autonomous **prompt** proposals/independent evaluation and M2.2 isolated **code** mutations with measured improvements and full real+virtual costs. Weather may later be a priced, time-bounded *common rule modifier*, never a referee rewrite or a targeted opponent-file edit. Keep bounded failed experiments and rigorous deterministic controls. Preserve historical M0–M2.0 protocols and tests.
+
+## Repository reality
+- `README.md`, `M11.md`–`M20.md` and `src/surlife/` describe implemented opt-in experiments; reread these before extending a protocol.
+- `foundation/PLAN.md` and frozen iteration snapshots are research proposals; older status/README wording may be stale.
+- For any newly implemented milestone, distinguish deterministic fake tests, real provider tests, and evidence of net cognitive benefit. Do not claim a trained organism from scripted policies or model output alone.
 
 ## Entry points
 1. Read foundation/README.md and foundation/CONTEXT.md.
