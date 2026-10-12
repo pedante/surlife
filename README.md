@@ -91,6 +91,21 @@ offline-verifiable, but new training is required for v2 promotion. See [M17.md](
 code or proves open-ended biological evolution. Classical exact DP remains
 unpriced and superior in this narrow task family.
 
+## Counterfactual cognition tournament (M1.8)
+
+**Opt-in** `surlife --m18` constructs one bounded model response bank on
+seeded M1.4 puzzles and then runs **never, always, selective, adaptive-fresh**
+(and optional adaptive-inherited) strategies against the exact **same sampled
+model answers**. Only initial bank construction makes real provider requests;
+`--m18-bank-in` reuses a verified bank and recomputes all policy outcomes
+completely offline with another virtual cognition cap. Reference weather
+and task are identical across strategies; the model sees a fixed 30-energy
+reference observation so a response is reusable across differing histories.
+Virtual energy charges and real API requests are reported **separately**.
+Existing Greedy, DP and oracle controls remain. This improves reproducibility
+and removes some provider-response variance but **does not** prove the LLM
+is preferable to cheap exact DP. See [M18.md](M18.md).
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
