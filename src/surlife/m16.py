@@ -21,7 +21,8 @@ from .m14 import (
 )
 from .storage import canonical
 
-POLICY_VERSION = "m16-v1"
+POLICY_VERSION = "m16-v2"
+LEGACY_POLICY_VERSION = "m16-v1"
 BUCKETS = ("uncertain", "routine")
 RATE_LIMITS = ("http_429", "provider_error_429")
 
@@ -175,8 +176,15 @@ def adaptive_arm(seed: int, cases: list[dict], args, gateway, state: dict | None
             info["policy_decision"] = decision
             if charges.get("a"):
                 delta = _shadow_gain(arena, cases, cheap, opponent, result)
-                policy.learn(decision["bucket"], delta)
+                # Provider outages cost virtual energy, but contain no
+                # evidence of model decision quality: do not train on them.
+                if info.get("source") == "llm":
+                    policy.learn(decision["bucket"], delta)
                 info["net_energy_vs_greedy"] = delta
+                info["feedback_kind"] = (
+                    "model_success" if info.get("source") == "llm"
+                    else "provider_failure"
+                )
             info["policy_after"] = policy.snapshot()
         case = cases[result["tick"]]
         info.update({"greedy_mask": case["greedy_mask"], "greedy_score": case["greedy_score"],
@@ -206,7 +214,9 @@ def build_report(args, state: dict | None = None) -> dict:
                 "opponent": "greedy", "provider": args.provider,
                 "requested_model": args.model if args.provider != "fake" else None,
                 "cognition": "adaptive", "request_cap": args.max_requests,
-                "policy_initial": state}
+                "policy_initial": state,
+                "generation": {"reasoning": args.reasoning,
+                               "max_output_tokens": args.max_output_tokens}}
     arms = {"greedy": _arm(args.seed, cases, "greedy", args),
             "dp": _arm(args.seed, cases, "dp", args),
             "oracle": _arm(args.seed, cases, "oracle", args),
@@ -222,7 +232,8 @@ def verify_adaptive_report(report: dict) -> dict:
     """Independent policy-decision + accounting replay, on top of M1.4 referee replay."""
     verified = verify_report(report)
     m = report["manifest"]
-    if m.get("experiment") != POLICY_VERSION or m.get("cognition") != "adaptive":
+    version = m.get("experiment")
+    if version not in (POLICY_VERSION, LEGACY_POLICY_VERSION) or m.get("cognition") != "adaptive":
         raise ValueError("not an M1.6 adaptive cognition report")
     policy = AdaptivePolicy(m.get("policy_initial"))
     cases = make_cases(m["seed"], m["cases"], m["items"], m["profile"])
@@ -254,11 +265,22 @@ def verify_adaptive_report(report: dict) -> dict:
                 gain = _shadow_gain(arena, cases, cheap, opponent, rec)
                 if gain != info.get("net_energy_vs_greedy"):
                     raise ValueError("adaptive feedback differs from counterfactual")
-                policy.learn(decision["bucket"], gain)
+                expected_kind = ("model_success" if source == "llm"
+                                 else "provider_failure")
+                if version == POLICY_VERSION:
+                    if info.get("feedback_kind") != expected_kind:
+                        raise ValueError("consultation success/failure provenance altered")
+                    if source not in ("llm", "greedy_provider_fallback"):
+                        raise ValueError("invalid charged consultation source")
+                    if expected_kind == "model_success":
+                        policy.learn(decision["bucket"], gain)
+                else:
+                    policy.learn(decision["bucket"], gain)
                 used += 1
                 if info.get("failure_reason") in RATE_LIMITS:
                     blocked = True
-            elif "net_energy_vs_greedy" in info:
+            elif ("net_energy_vs_greedy" in info or
+                  "feedback_kind" in info):
                 raise ValueError("uncharged feedback recorded")
             if info.get("policy_after") != policy.snapshot():
                 raise ValueError("policy learning state was altered")
@@ -305,8 +327,19 @@ def load_promoted_policy(path: str) -> dict:
     except (ValueError, UnicodeError) as exc:
         raise ValueError("invalid promoted policy JSON") from exc
     if (not isinstance(obj, dict)
-            or set(obj) != {"version", "state", "training_heads", "gate_report_head"}
+            or set(obj) != {"version", "state", "training_heads",
+                            "gate_report_head", "provider", "model",
+                            "generation", "evaluation_protocol"}
             or obj["version"] != POLICY_VERSION
+            or obj["evaluation_protocol"] != "m17-v2"
+            or obj["provider"] not in ("fake", "google", "openrouter")
+            or not isinstance(obj["model"], str)
+            or not 1 <= len(obj["model"]) <= 140
+            or not isinstance(obj["generation"], dict)
+            or set(obj["generation"]) != {"reasoning", "max_output_tokens"}
+            or obj["generation"]["reasoning"] not in ("off", "low", "auto")
+            or type(obj["generation"]["max_output_tokens"]) is not int
+            or not 16 <= obj["generation"]["max_output_tokens"] <= 8192
             or not isinstance(obj["training_heads"], list)
             or not 1 <= len(obj["training_heads"]) <= 4):
         raise ValueError("unsupported promoted policy snapshot")
@@ -314,14 +347,30 @@ def load_promoted_policy(path: str) -> dict:
     if any(not isinstance(h, str) or len(h) != 64
            or any(ch not in "0123456789abcdef" for ch in h) for h in heads):
         raise ValueError("invalid policy provenance")
-    return validate_state(obj["state"])
+    return validate_state(obj["state"]), {
+        "provider": obj["provider"], "model": obj["model"],
+        "generation": obj["generation"],
+    }
+
+
+def _policy_identity(args) -> dict:
+    return {
+        "provider": args.provider,
+        "model": "surlife/fake-model" if args.provider == "fake" else args.model,
+        "generation": {"reasoning": args.reasoning,
+                       "max_output_tokens": args.max_output_tokens},
+    }
 
 
 def run_m16(args) -> dict:
     if args.benchmark_out and Path(args.benchmark_out).exists():
         raise ValueError("benchmark output exists; choose another filename")
-    state = (load_promoted_policy(args.policy_in)
-             if getattr(args, "policy_in", None) else None)
+    state = None
+    if getattr(args, "policy_in", None):
+        state, identity = load_promoted_policy(args.policy_in)
+        if identity != _policy_identity(args):
+            raise ValueError("promoted policy provider/model/config mismatch; "
+                             "never inherit fake training into a live model")
     report = build_report(args, state)
     result = verify_adaptive_report(report)
     write_report(report, args.benchmark_out)
