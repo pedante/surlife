@@ -1,0 +1,33 @@
+name: M1.8 counterfactual cognition bank and audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  m18-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install offline tests
+        run: python -m pip install -e '.[test]'
+      - name: Run M1.8 unit/regression tests
+        run: pytest -q tests/test_m18.py
+      - name: M1.8 offline sampling smoke
+        run: |
+          surlife --m18 --provider fake --a llm --b greedy --seed 17 --benchmark-cases 4 --max-requests 4 --benchmark-out out/m18-ci.json
+          surlife --verify-m18-file out/m18-ci.json
+      - name: Offline re-evaluation with fewer virtual consultations
+        run: |
+          surlife --m18 --provider fake --a llm --b greedy --seed 17 --benchmark-cases 4 --max-requests 4 --m18-virtual-cap 1 --m18-bank-in out/m18-ci.json --benchmark-out out/m18-rescored-ci.json
+          surlife --verify-m18-file out/m18-rescored-ci.json
