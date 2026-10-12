@@ -11,6 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+pettingzoo = ["pettingzoo==1.27.0"]  # optional experiment, NOT a core dependency
 gemini = ["google-genai>=2.22.0,<3"]
 
 [project.scripts]
