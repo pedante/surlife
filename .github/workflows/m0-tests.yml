@@ -27,3 +27,7 @@ jobs:
         run: |
           surlife --seed 7 --ticks 12 --db out/ci.sqlite --run-id smoke
           surlife --db out/ci.sqlite --replay smoke
+          surlife --multi --population 8 --population-arena task-duel --population-brains greedy,optimal,random,wait --provider fake --seed 17 --ticks 24 --benchmark-out out/population-ci.json
+          surlife --verify-population-file out/population-ci.json
+          surlife --multi --population 2 --population-arena legacy-m20 --population-brains steward,extractive --provider fake --seed 17 --ticks 16 --benchmark-out out/population-m20-ci.json
+          surlife --verify-population-file out/population-m20-ci.json

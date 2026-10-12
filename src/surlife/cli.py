@@ -51,6 +51,18 @@ def main() -> None:
                         help="M1.10 shared-model-response cognition tournament in M1.9 worlds")
     parser.add_argument("--m111", action="store_true",
                         help="M1.11 offline TaskPack-specific inherited cognition and holdouts")
+    parser.add_argument("--multi", action="store_true",
+                        help="opt-in population-v1 offline interchangeable arena/organism experiment")
+    parser.add_argument("--population", type=int, default=8,
+                        help="multi: 2..128 organisms (default 8)")
+    parser.add_argument("--population-arena",
+                        choices=("task-duel", "task-work", "legacy-m0", "legacy-m20"),
+                        default="task-duel",
+                        help="multi: select trusted arena adapter (legacy worlds admit exactly 2)")
+    parser.add_argument("--population-brains", default="greedy,optimal,random,wait",
+                        help="multi: comma-separated vetted organism strategies, cycled over population")
+    parser.add_argument("--verify-population-file",
+                        help="offline deterministic verification of population report")
     parser.add_argument("--m21c", action="store_true",
                         help="M2.1-C paired prompt mutation with model-response audit (offline by default)")
     parser.add_argument("--m21c-confirm-live", action="store_true",
@@ -144,10 +156,18 @@ def main() -> None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
     if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.m111 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file or args.verify_m111_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111, args.m20, args.m21, args.m21c)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111, args.m20, args.m21, args.m21c, args.multi)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_population_file:
+        from .population import verify_file as verify_population_file
+        try:
+            print(json.dumps(verify_population_file(args.verify_population_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_m21c_file:
         from .m21c import verify_file as verify_m21c_file
         try:
@@ -243,6 +263,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.multi:
+        from .population import run_population
+        try:
+            print(json.dumps(run_population(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return

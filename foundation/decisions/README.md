@@ -16,3 +16,5 @@ A reviewer's recommendation is **not** an accepted decision; the maintainer/huma
 
 - [ADR-0001 — Auditable iteration loop](ADR-0001-auditable-iteration-loop.md)
 - [ADR-0002 — Evolution-first Surlife](ADR-0002-evolution-first.md) — 2026-10-12 human course correction: world is a compact competitive harness, organisms evolve prompts and modules.
+
+- [ADR-0003 — Interchangeable organism and arena adapters](ADR-0003-population-adapters.md) — 2026-10-12 user-approved offline population infrastructure without rewriting historical referees.
