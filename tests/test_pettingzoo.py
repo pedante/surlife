@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from random import Random
 
-import numpy as np
 import pytest
 
 pytest.importorskip("pettingzoo", reason="optional PettingZoo evaluation extra")
+np = pytest.importorskip("numpy", reason="numpy belongs to optional PettingZoo extra")
 from pettingzoo.test import parallel_api_test
 from pettingzoo.utils.env import ParallelEnv
 
