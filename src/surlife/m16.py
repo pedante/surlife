@@ -270,10 +270,38 @@ def write_report(report: dict, filename: str | None) -> None:
             temp.unlink()
 
 
+def load_promoted_policy(path: str) -> dict:
+    """Load only a bounded data snapshot, never imported modules or code.
+
+    The provenance fields are descriptive, not a cryptographic signature;
+    a trusted M1.7 bundle is needed to verify their historical legitimacy.
+    """
+    p = Path(path)
+    if not p.is_file() or p.stat().st_size > 65536:
+        raise ValueError("promoted policy snapshot unavailable or oversized")
+    try:
+        obj = json.loads(p.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError("invalid promoted policy JSON") from exc
+    if (not isinstance(obj, dict)
+            or set(obj) != {"version", "state", "training_heads", "gate_report_head"}
+            or obj["version"] != POLICY_VERSION
+            or not isinstance(obj["training_heads"], list)
+            or not 1 <= len(obj["training_heads"]) <= 4):
+        raise ValueError("unsupported promoted policy snapshot")
+    heads = [*obj["training_heads"], obj["gate_report_head"]]
+    if any(not isinstance(h, str) or len(h) != 64
+           or any(ch not in "0123456789abcdef" for ch in h) for h in heads):
+        raise ValueError("invalid policy provenance")
+    return validate_state(obj["state"])
+
+
 def run_m16(args) -> dict:
     if args.benchmark_out and Path(args.benchmark_out).exists():
         raise ValueError("benchmark output exists; choose another filename")
-    report = build_report(args)
+    state = (load_promoted_policy(args.policy_in)
+             if getattr(args, "policy_in", None) else None)
+    report = build_report(args, state)
     result = verify_adaptive_report(report)
     write_report(report, args.benchmark_out)
     return {"manifest": report["manifest"], "summary": report["summary"],
