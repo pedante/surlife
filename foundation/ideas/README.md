@@ -12,7 +12,8 @@ Every idea should include:
 - Status: proposed / deferred / testing / accepted / rejected
 - Related issues, sources and iterations
 
-The current proposal remains [../PLAN.md](../PLAN.md). See:
+The current proposal remains [../PLAN.md](../PLAN.md). Proposed or deferred ideas:
 
-- [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md)
-- [0002 — nanobot vs mini-SWE-agent reasoning core](0002-reasoning-core-nanobot-vs-mini-swe.md) — proposed architecture, alternatives and falsifiable selection test; not approved implementation.
+- [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md) — deferred lifetime, inheritance and social dynamics.
+- [Arena framework comparison](0002-arena-framework-comparison.md) — proposed minimal Python referee, optional PettingZoo adapter and OpenSpiel benchmark integration; includes falsifiable adoption tests.
+- [Reasoning-core comparison: nanobot vs mini-SWE-agent](0002-reasoning-core-nanobot-vs-mini-swe.md) — proposed architecture, alternatives and falsifiable selection test; not approved implementation.
