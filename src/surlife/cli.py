@@ -120,7 +120,7 @@ def main() -> None:
                       else "dots-studio/dots-3-note-preview:free")
     if args.max_output_tokens is None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
-    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file):
+    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.m111 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file or args.verify_m111_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
     if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111)) > 1:
         parser.error("choose only one experiment stage")
