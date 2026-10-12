@@ -120,6 +120,23 @@ runs offline, with zero hosted provider requests. This characterizes
 new worlds before we spend inference calls or draw cognitive claims.
 See [M19.md](M19.md).
 
+## TaskPack cognition tournament (M1.10)
+
+`surlife --m110` connects M1.8's shared-response bank to M1.9's
+**coverage** and **synergy** TaskPacks. Pack-specific model prompts expose
+only public scoring rules (unique weighted feature coverage or pairwise
+bonuses) without disclosing reference solutions. Each organism's model
+consultations cost one virtual energy, and the cheap fallback is the
+**stronger marginal-gain strategy**, not the old ratio-Greedy. Compare
+never, always, selective, and adaptive-fresh cognition against Greedy,
+marginal, beam and an unpriced oracle. A one-time response bank can be
+audited and reused with **zero additional API calls**; model/provider,
+prompt/scoring version and taskpack settings must match. Inherited M1.7
+knapsack policies are intentionally barred because their feedback
+semantics are incompatible. The benchmark does **not** imply LLM
+superiority or a persistent artificial-life ecosystem. See
+[M110.md](M110.md).
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
