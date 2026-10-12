@@ -1,15 +1,21 @@
 # Igor Life / Primordial Arena
 
 *Artificial life fights for survival.*
+## First runnable prototype (M0)
+
+**A small offline, deterministic arena is now implemented in this branch.** It has two scripted organisms, a scored puzzle duel, virtual-energy transfers, a transactional SQLite journal, replay and automated tests. **It does not yet implement LLM organisms, evolving prompts, generated code or reproduction.**
+
+See [IMPLEMENTATION.md](IMPLEMENTATION.md) for exact commands, tested scope, reuse decisions and next stages; [IMPLEMENTATION_DECISION.md](IMPLEMENTATION_DECISION.md) records the user-authorized experimental scope.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
 
-The **current proposal** is [foundation/PLAN.md](foundation/PLAN.md). The **first frozen review snapshot** is [foundation/iterations/0001/PROPOSAL.md](foundation/iterations/0001/PROPOSAL.md). Start a fresh Codex or other LLM review using [foundation/prompts/REVIEWER.md](foundation/prompts/REVIEWER.md). Reviews have not yet been conducted; this is a design research workflow, not a running simulation.
+The **current proposal** is [foundation/PLAN.md](foundation/PLAN.md). The **first frozen review snapshot** is [foundation/iterations/0001/PROPOSAL.md](foundation/iterations/0001/PROPOSAL.md). Start a fresh Codex or other LLM review using [foundation/prompts/REVIEWER.md](foundation/prompts/REVIEWER.md). Independent design reviews now exist; see PRs #5 and #6. M0 has a runnable offline baseline, but no LLM/evolution experiments have been conducted.
 
 ## Foundation documents — concept and engineering research
 
-**Status:** design proposal, not implemented or experimentally validated  
+**Status:** broader concept remains unvalidated; offline M0 engineering baseline implemented  
 **Version:** 0.1 · **Prepared:** 11 October 2026  
 **Working title:** *Igor Life* (also called *Digital Evolution*, *Artificial Life*, or *Primordial Arena* in our discussions)
 
@@ -66,4 +72,4 @@ Use this set as a project charter and living set of requirements before writing 
                     (LLM gateway / tool contract)
 ```
 
-**Next actual decision:** implement a two-organism, one-game, no-code-mutation vertical slice; then prove isolation and a single validated code mutation before expanding the population.
+**Current implementation:** a model-free two-organism, one-game M0 vertical slice is in the implementation branch. The next stage is experimental calibration, then versioned souls and capped model calls; generated-code isolation is required before any M2 execution.
