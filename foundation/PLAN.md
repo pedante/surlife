@@ -1,5 +1,8 @@
 # Proposal 0001 — Surlife minimal evolutionary arena
 
+> **Implementation-priority clarification, approved 2026-10-12:** This original design already treats mutable prompts and Python modules as the research target. The implementation has meanwhile produced M0–M2.0 prototypes, but the M2.0 number was used for an optional ecology experiment rather than the code-mutation stage envisioned below. Preserve the original review snapshot and protocol histories. **Next proposed implementation is M2.1 autonomous prompt mutation, then M2.2 isolated code mutation; detailed contracts and gates are in [EVOLUTION_FIRST.md](EVOLUTION_FIRST.md) and [ADR-0002](decisions/ADR-0002-evolution-first.md).** Do not interpret stock, soil or harvesting as required world features. This note is a human-direction decision, not evidence of experimentally validated learning.
+
+
 **Revision:** draft 0.1 — **unreviewed / not approved for implementation**  
 **Review unit:** this exact document, frozen as iterations/0001/PROPOSAL.md  
 **Date:** 2026-10-11  
