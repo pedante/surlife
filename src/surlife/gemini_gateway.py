@@ -9,6 +9,7 @@ from .gateway import (ACTION_SCHEMA, REFLECTION_SCHEMA, GatewayError, Reply,
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 GEMINI_DEFAULT_OUTPUT_TOKENS = 4096
 GEMINI_MAX_OUTPUT_TOKENS = 8192
+DEFAULT_GOOGLE_TIMEOUT_SECONDS = 90
 FREE_GEMINI_MODELS = frozenset({
     "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash-lite",
 })
@@ -101,7 +102,8 @@ def _reason(exc: Exception) -> str:
 class GeminiGateway:
     def __init__(self, model: str = DEFAULT_GEMINI_MODEL,
                  max_requests: int = 6, max_output_tokens: int = GEMINI_DEFAULT_OUTPUT_TOKENS,
-                 reasoning: str = "off", transport: Callable | None = None):
+                 reasoning: str = "off", transport: Callable | None = None,
+                 timeout_seconds: int = DEFAULT_GOOGLE_TIMEOUT_SECONDS):
         check_gemini_model(model)
         if type(max_requests) is not int or max_requests < 1:
             raise ValueError("max_requests must be positive")
@@ -110,6 +112,8 @@ class GeminiGateway:
             raise ValueError("Gemini max_output_tokens must be 16..8192 (includes thought tokens)")
         if reasoning not in ("off", "low", "auto"):
             raise ValueError("reasoning must be off, low or auto")
+        if type(timeout_seconds) is not int or not 10 <= timeout_seconds <= 180:
+            raise ValueError("Google timeout must be between 10 and 180 seconds")
         if transport is None:
             try:
                 from google import genai  # noqa: F401 - optional SDK preflight
@@ -119,6 +123,7 @@ class GeminiGateway:
                 ) from None
         self.model, self.limit, self.calls = model, max_requests, 0
         self.max_output_tokens, self.reasoning = max_output_tokens, reasoning
+        self.timeout_seconds = timeout_seconds
         self.transport = transport or self._sdk_call
 
     @property
@@ -126,12 +131,21 @@ class GeminiGateway:
         return max(0, self.limit - self.calls)
 
     @staticmethod
-    def _sdk_call(*, api_key: str, **kwargs):
+    def _sdk_call(*, api_key: str, timeout_seconds: int, **kwargs):
         try:
             from google import genai
         except ImportError:
             raise GatewayError("install google-genai optional dependency", "missing_google_sdk") from None
-        client = genai.Client(api_key=api_key, http_options={"api_version": "v1"})
+        # Interactions can otherwise inherit SDK retry/backoff and long
+        # default timeouts, hiding multiple network attempts behind one
+        # virtual-energy debit. 0 attempts disables retries on the generated
+        # Interactions transport (and is treated as a single attempt by the
+        # standard SDK client). timeout is milliseconds.
+        client = genai.Client(api_key=api_key, http_options={
+            "api_version": "v1",
+            "timeout": timeout_seconds * 1000,
+            "retry_options": {"attempts": 0},
+        })
         try:
             return client.interactions.create(**kwargs)
         finally:
@@ -152,7 +166,8 @@ class GeminiGateway:
         self.calls += 1  # debit before send; no automatic retry
         try:
             interaction = self.transport(
-                api_key=key, model=self.model, input=prompt, store=False,
+                api_key=key, timeout_seconds=self.timeout_seconds,
+                model=self.model, input=prompt, store=False,
                 response_format={"type": "text", "mime_type": "application/json",
                                  "schema": schema},
                 generation_config={
