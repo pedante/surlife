@@ -196,6 +196,8 @@ class LegacyM0Adapter:
                  for legacy, current in rename.items()}
         raw = self.inner.step(acts, calls)
         row = _remap_legacy(raw, rename)
+        if row["winner"] is not None:
+            row["winner"] = rename[row["winner"]]
         # Transfer endpoint VALUES require remapping, not just mapping keys.
         for transfer in row["transfers"]:
             transfer["from"] = rename.get(transfer["from"], transfer["from"])
