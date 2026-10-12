@@ -51,6 +51,14 @@ def main() -> None:
                         help="M1.10 shared-model-response cognition tournament in M1.9 worlds")
     parser.add_argument("--m111", action="store_true",
                         help="M1.11 offline TaskPack-specific inherited cognition and holdouts")
+    parser.add_argument("--m21", action="store_true",
+                        help="M2.1 offline prompt-mutation tournament with scripted fake provider")
+    parser.add_argument("--m21-a", choices=("evolving", "frozen"), default="evolving",
+                        help="M2.1 organism A genome policy")
+    parser.add_argument("--m21-b", choices=("evolving", "frozen"), default="frozen",
+                        help="M2.1 organism B genome policy")
+    parser.add_argument("--verify-m21-file",
+                        help="M2.1 independent offline replay and prompt-mutation audit")
     parser.add_argument("--m20", action="store_true",
                         help="M2.0 persistent shared-resource ecology (offline only)")
     parser.add_argument("--m20-a", choices=("extractive", "steward", "opportunist", "rest"),
@@ -130,10 +138,18 @@ def main() -> None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
     if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.m111 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file or args.verify_m111_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111, args.m20)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111, args.m20, args.m21)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_m21_file:
+        from .m21 import verify_file
+        try:
+            print(json.dumps(verify_file(args.verify_m21_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_m20_file:
         from .m20 import verify_m20_file
         try:
@@ -213,6 +229,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m21:
+        from .m21 import run_m21
+        try:
+            print(json.dumps(run_m21(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return
