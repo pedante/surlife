@@ -11,6 +11,17 @@ See [IMPLEMENTATION.md](IMPLEMENTATION.md) for exact commands, tested scope, reu
 
 **Experimental implementation:** M1 introduces separate versioned souls, bounded memory and one JSON action per hosted model consultation. It supports the OpenRouter free tier with no extra runtime SDK or a deterministic fake provider for offline tests. See [M1.md](M1.md) for Fish shell API-key setup, CLI examples, provider restrictions and scientific limitations. The M1 default is pinned to a catalog-listed free Dots3-Note Preview model and validates current free pricing and structured JSON support before any real inference. The optional random `openrouter/free` route is discouraged for controlled comparisons.
 
+## Feedback-aware, evaluated souls (M1.1)
+
+**New opt-in experiment:** `surlife --m11` separates action from post-outcome
+reflection, records valid/invalid moves and normalized score quality, and queues
+reusable strategy hypotheses without immediately changing active prompts.
+Use `surlife --evaluate-soul out/souls/RUN/a.json` to compare original vs
+candidate prompts on matched held-out tasks before accepting any revision.
+`--cognition selective|always|never` controls a **host-owned**, resource-gated
+cognition schedule, not yet an evolved metacognitive ability.
+See [M11.md](M11.md) for runnable commands, external request budgets and caveats.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
