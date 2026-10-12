@@ -134,3 +134,23 @@ def test_m17_file_and_gated_snapshot(tmp_path):
         assert snapshot["state"] == result["policy"]
     with pytest.raises(ValueError, match="exists"):
         run_m17(args)
+
+
+def test_promoted_snapshot_is_data_only_and_reusable(tmp_path):
+    from surlife.m16 import load_promoted_policy
+    training = build_report(opts(tmp_path, seed=17))
+    state = aggregate_training([training])
+    snapshot = {
+        "version": "m16-v1", "state": state,
+        "training_heads": [training["head"]],
+        "gate_report_head": "a" * 64,
+    }
+    path = tmp_path / "policy.json"
+    path.write_text(json.dumps(snapshot))
+    assert load_promoted_policy(str(path)) == state
+    inherited = run_m16(opts(tmp_path, policy_in=str(path)))
+    assert inherited["manifest"]["policy_initial"] == state
+    snapshot["state"]["routine"]["visits"] = -1
+    path.write_text(json.dumps(snapshot))
+    with pytest.raises(ValueError):
+        load_promoted_policy(str(path))
