@@ -71,6 +71,27 @@ def test_holdout_is_disjoint_and_has_no_direct_candidate_authority():
                episode["ticks"][staged_tick]["genomes_after"]["a"]
 
 
+def test_seed_17_exercises_actual_activation():
+    report = build_report(17, 24, "evolving", "frozen", 8)
+    organism = report["episodes"]["primary"]["organisms"]["a"]
+    events = organism["revision_events"]
+    assert [event["decision"] for event in events] == ["staged", "activated"]
+    assert organism["soul_version"] == 1
+    assert events[1]["candidate_hash"] == organism["soul_hash"]
+    assert report["summary"]["a_energy_difference_vs_frozen"] <= 0
+
+
+def test_nonimproving_candidate_is_rejected(monkeypatch):
+    import surlife.m21 as m21
+    monkeypatch.setattr(m21, "SUGGESTION",
+                        "Try to check the subset cost carefully before committing.")
+    report = m21.build_report(17, 24, "evolving", "frozen", 8)
+    organism = report["episodes"]["primary"]["organisms"]["a"]
+    assert [e["decision"] for e in organism["revision_events"]] == ["staged", "rejected"]
+    assert organism["soul_version"] == 0
+    assert report["episodes"]["primary"]["fake_requests"] == 4
+
+
 def test_budget_cap_including_trials():
     report = build_report(17, 32, "evolving", "frozen", 1)
     ep = report["episodes"]["primary"]
