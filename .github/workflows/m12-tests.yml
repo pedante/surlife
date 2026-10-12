@@ -1,0 +1,30 @@
+name: M1.2 robust evaluation and diagnostics
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  m12-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install -e '.[test]'
+      - name: Test M1.2 deterministic behavior and held-out gates
+        run: pytest -q tests/test_m12.py
+      - name: M1.2 offline run, replay and candidate evaluation
+        run: |
+          surlife --m12 --seed 17 --ticks 12 --a llm --b greedy --provider fake --cognition selective --max-requests 8 --run-id ci-m12 --db out/m12-ci.sqlite --souls-dir out/m12-ci-souls
+          surlife --replay ci-m12 --db out/m12-ci.sqlite
+          surlife --m12 --evaluate-soul out/m12-ci-souls/ci-m12/a.json --provider fake --evaluation-seed 3003 --evaluation-tasks 2 --evaluation-cohorts 2 --max-evaluation-requests 8

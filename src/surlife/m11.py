@@ -22,18 +22,52 @@ from .souls import Soul
 from .storage import Journal
 
 MAX_PENDING = 1
+MAX_SEEN_TASKS = 4096
+
+
+def task_fingerprint(task: dict) -> str:
+    return hashlib.sha256(json.dumps(task, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def task_history_digest(seen: list[str], complete: bool) -> str:
+    payload = json.dumps({"seen_task_hashes": seen, "history_complete": complete},
+                         sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 @dataclass
 class EvolutionSoul(Soul):
     pending: list[dict] = field(default_factory=list)
     evaluation_history: list[dict] = field(default_factory=list)
+    seen_task_hashes: list[str] = field(default_factory=list)
+    history_complete: bool = True
 
     @classmethod
     def restore(cls, actor: str, snapshot: str) -> "EvolutionSoul":
         base = Soul.restore(actor, snapshot)
         content = json.loads(Path(snapshot).read_text(encoding="utf-8"))
         pending = content.get("pending", [])
+        seen = content.get("seen_task_hashes", [])
+        complete = content.get("history_complete", False)
+        if (not isinstance(seen, list) or len(seen) > MAX_SEEN_TASKS
+                or any(not isinstance(x, str) or not re.fullmatch(r"[0-9a-f]{64}", x) for x in seen)
+                or type(complete) is not bool):
+            raise ValueError("invalid seen-task history")
+        checksum = content.get("task_history_sha256")
+        if checksum is not None and checksum != task_history_digest(seen, complete):
+            raise ValueError("task-history checksum mismatch")
+        if complete and checksum is None:
+            # Missing checksum means an imported legacy lineage; never make
+            # an unearned complete-history claim for contamination checks.
+            complete = False
+        if complete:
+            remembered = {
+                task_fingerprint({"items": entry["items"], "capacity": entry["capacity"]})
+                for entry in content.get("memory", [])
+                if isinstance(entry, dict) and "items" in entry and "capacity" in entry
+            }
+            if not remembered.issubset(set(seen)):
+                raise ValueError("task-history missing remembered tasks")
         history = content.get("evaluation_history", [])
         if not isinstance(pending, list) or len(pending) > MAX_PENDING:
             raise ValueError("invalid pending revisions")
@@ -46,7 +80,8 @@ class EvolutionSoul(Soul):
         if (not isinstance(history, list) or len(history) > 30
                 or any(not isinstance(item, dict) for item in history)):
             raise ValueError("invalid evaluation history")
-        return cls(**base.__dict__, pending=pending, evaluation_history=history)
+        return cls(**base.__dict__, pending=pending, evaluation_history=history,
+                   seen_task_hashes=seen, history_complete=complete)
 
     def save(self, run_dir: Path) -> None:
         """Atomically save complete lineage; inherited M1 snapshots remain compatible."""
@@ -58,6 +93,8 @@ class EvolutionSoul(Soul):
             "notes": self.notes, "sha256": self.sha256,
             "memory": self.memory, "revisions": self.revisions,
             "pending": self.pending, "evaluation_history": self.evaluation_history,
+            "seen_task_hashes": self.seen_task_hashes, "history_complete": self.history_complete,
+            "task_history_sha256": task_history_digest(self.seen_task_hashes, self.history_complete),
         }
         with temp.open("w", encoding="utf-8") as fp:
             json.dump(data, fp, sort_keys=True, indent=2)
@@ -69,6 +106,12 @@ class EvolutionSoul(Soul):
     def observe_result(self, obs, mask: int | None, score: int | None,
                        optimum: int, reward: int, energy: int, source: str) -> None:
         self.observe(obs.tick, score, optimum, reward, energy)
+        fingerprint = task_fingerprint(obs.task.as_dict())
+        if fingerprint not in self.seen_task_hashes:
+            self.seen_task_hashes.append(fingerprint)
+            if len(self.seen_task_hashes) > MAX_SEEN_TASKS:
+                self.history_complete = False
+                self.seen_task_hashes.pop(0)
         cost = (sum(c for i, (c, _) in enumerate(obs.task.items) if mask & (1 << i))
                 if type(mask) is int and 0 <= mask < (1 << len(obs.task.items)) else None)
         optimum_mask = max(range(1 << len(obs.task.items)),
@@ -213,14 +256,10 @@ def run_m11(args, db_path: Path) -> dict:
     else:
         base = Soul.new("a", custom)
         soul = EvolutionSoul(**base.__dict__)
-    if soul.pending and args.cognition != "never":
-        # A pending candidate must be evaluated before new proposals, but
-        # regular arena actions can continue safely using the old prompt.
-        pass
 
     arena = Arena(args.seed)
     manifest = {
-        "rules": RULES_VERSION, "kind": "m11-staged-evolution",
+        "rules": RULES_VERSION, "kind": "m12-observable-evolution" if getattr(args, "m12", False) else "m11-staged-evolution",
         "seed": args.seed, "start_energy": START_ENERGY, "stake": STAKE,
         "policies": {"a": "llm", "b": args.b},
         "cognition": args.cognition,
@@ -318,12 +357,26 @@ def run_m11(args, db_path: Path) -> dict:
                     "score_ratio": (round(score / record["optimal_score"], 6)
                                     if score is not None and score >= 0 else None),
                 })
+            if getattr(args, "m12", False):
+                # Shadow baseline is observation-only: it NEVER replaces the
+                # proposed model action or changes settlement, and is scored
+                # against the exact same task for causal diagnostics.
+                greedy_mask = POLICIES["greedy"](a_obs, Random(0)).mask
+                greedy_score = a_obs.task.score(greedy_mask)
+                model_score = record["scores"]["a"]
+                metadata.setdefault("a", {}).update({
+                    "shadow_greedy_mask": greedy_mask,
+                    "shadow_greedy_score": greedy_score,
+                    "delta_vs_greedy": (model_score - greedy_score
+                                        if model_score is not None else None),
+                    "decision_cost": record["consultations"]["a"],
+                })
             record["model_calls"] = metadata
             journal.append(run_id, record)
             soul.save(root)
         report = journal.replay(run_id)
     report.update({
-        "kind": "m11-staged-evolution", "provider": args.provider,
+        "kind": manifest["kind"], "provider": args.provider,
         "model_requests": gateway.calls, "max_requests": gateway.limit,
         "requested_model": manifest["requested_model"], "cognition": args.cognition,
         "consultation_modes": mode_counts, "pending_revisions": len(soul.pending),

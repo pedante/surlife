@@ -30,16 +30,24 @@ def main() -> None:
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--replay", metavar="RUN_ID", help="verify saved events without running new turns")
     parser.add_argument("--m11", action="store_true", help="M1.1 staged, feedback-aware organism")
+    parser.add_argument("--m12", action="store_true",
+                        help="M1.2 observable organism; with --evaluate-soul use multi-cohort evaluation")
     parser.add_argument("--cognition", choices=("selective", "always", "never"),
                         default="selective", help="M1.1 host-owned cognition schedule")
     parser.add_argument("--evaluate-soul", metavar="FILE",
                         help="explicit paired holdout evaluation of one pending M1.1 soul")
     parser.add_argument("--evaluation-seed", type=int, default=1009)
     parser.add_argument("--evaluation-tasks", type=int, default=4)
+    parser.add_argument("--evaluation-cohorts", type=int, default=2,
+                        help="M1.2 paired cohorts (min 2, default 2)")
+    parser.add_argument("--max-evaluation-requests", type=int, default=24,
+                        help="M1.2 hard cap on real evaluation requests (max 24)")
     parser.add_argument("--eval-min-gain", type=int, default=2)
     parser.add_argument("--check-model", action="store_true",
                         help="check OpenRouter public model catalog without an LLM request or API key")
     args = parser.parse_args()
+    if args.m11 and args.m12:
+        parser.error("choose --m11 or --m12, not both")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
     if args.check_model:
@@ -50,7 +58,10 @@ def main() -> None:
             parser.error(str(exc))
         return
     if args.evaluate_soul:
-        from .evaluation import evaluate_snapshot
+        if args.m12:
+            from .evaluation_v2 import evaluate_snapshot_v2 as evaluate_snapshot
+        else:
+            from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
         except ValueError as exc:
@@ -63,7 +74,7 @@ def main() -> None:
         with Journal(path) as journal:
             print(json.dumps(journal.replay(args.replay), indent=2, sort_keys=True))
         return
-    if args.m11:
+    if args.m11 or args.m12:
         from .m11 import run_m11
         try:
             result = run_m11(args, path)
