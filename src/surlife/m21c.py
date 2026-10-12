@@ -190,7 +190,8 @@ class ResponseDriver:
             # Even a successful response with missing usage fails closed.
             return {
                 "status": "ok", "model": result.model, "usage": usage,
-                "note": result.soul_update if kind == "reflection" else None,
+                "note": (result.soul_update if kind == "reflection" else
+                         None if result.soul_update == "" else result.soul_update),
                 "mask": result.mask if kind != "reflection" else None,
             }
         except GatewayError as exc:
