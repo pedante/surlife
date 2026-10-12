@@ -25,6 +25,10 @@ For Codex, use root [AGENTS.md](../AGENTS.md) and this directory's [AGENTS.md](A
 | docs/*.md | Background references | Earlier discussions and research, not the current plan |
 | Code and tests (future) | Only against approved milestone | Actual implementations; never equated with design acceptance |
 
+## Existing software reuse research
+
+Before building the arena or agent core, consult [research/README.md](research/README.md) for the curated 29-candidate inventory, machine-readable evaluation queue and falsifiable reuse-versus-build protocol. This research is background, not approval to modify the frozen proposal or import any dependency.
+
 ## Recommended iteration loop
 1. **Draft:** write a bounded problem, proposal, alternatives, metrics, failure criteria and unanswered questions into PLAN.md.
 2. **Freeze:** copy PLAN.md into a new numbered iterations/NNNN/PROPOSAL.md; note exact Git commit in each reviewer submission.
