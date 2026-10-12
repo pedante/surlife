@@ -118,7 +118,9 @@ def test_file_verification(tmp_path):
 ])
 def test_invalid_inputs_fail_closed(kwargs):
     with pytest.raises(ValueError):
-        build_report(17, 12, **kwargs)
+        options = {"seed": 17, "ticks": 12}
+        options.update(kwargs)
+        build_report(**options)
 
 
 def test_frozen_baseline_and_no_organism_prompt_changes():
