@@ -15,5 +15,5 @@ Every idea should include:
 The current proposal remains [../PLAN.md](../PLAN.md). Proposed or deferred ideas:
 
 - [0001 — Future ecosystem mechanics](0001-future-ecosystem-mechanics.md) — deferred lifetime, inheritance and social dynamics.
-- [0002 — Arena framework comparison](0002-arena-framework-comparison.md) — proposed minimal Python referee, optional PettingZoo adapter and OpenSpiel benchmark integration; includes falsifiable adoption tests.
-
+- [Arena framework comparison](0002-arena-framework-comparison.md) — proposed minimal Python referee, optional PettingZoo adapter and OpenSpiel benchmark integration; includes falsifiable adoption tests.
+- [Reasoning-core comparison: nanobot vs mini-SWE-agent](0002-reasoning-core-nanobot-vs-mini-swe.md) — proposed architecture, alternatives and falsifiable selection test; not approved implementation.
