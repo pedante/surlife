@@ -7,6 +7,10 @@
 
 See [IMPLEMENTATION.md](IMPLEMENTATION.md) for exact commands, tested scope, reuse decisions and next stages; [IMPLEMENTATION_DECISION.md](IMPLEMENTATION_DECISION.md) records the user-authorized experimental scope.
 
+## Bounded LLM organisms (M1)
+
+**Experimental implementation:** M1 introduces separate versioned souls, bounded memory and one JSON action per hosted model consultation. It supports the OpenRouter free tier with no extra runtime SDK or a deterministic fake provider for offline tests. See [M1.md](M1.md) for Fish shell API-key setup, CLI examples, provider restrictions and scientific limitations. The M1 default is pinned to a catalog-listed free Dots3-Note Preview model and validates current free pricing and structured JSON support before any real inference. The optional random `openrouter/free` route is discouraged for controlled comparisons.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
