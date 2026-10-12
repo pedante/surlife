@@ -106,6 +106,20 @@ Existing Greedy, DP and oracle controls remain. This improves reproducibility
 and removes some provider-response variance but **does not** prove the LLM
 is preferable to cheap exact DP. See [M18.md](M18.md).
 
+## Non-additive TaskPacks (M1.9)
+
+**Opt-in offline** `surlife --m19` introduces two fully visible new
+scoring rules: **coverage** (unique weighted features with diminishing
+overlap returns), and **synergy** (bonuses only if particular pairs of
+items are chosen together). Tasks can alternate in `mixed` mode.
+Independent reference scoring and exact mask enumeration audit the new
+rules while the existing M0-v2 referee retains the energy economy.
+Compare the original singleton-ratio Greedy against **marginal-gain
+Greedy, bounded beam search, and unpriced exact Oracle**. All of M1.9
+runs offline, with zero hosted provider requests. This characterizes
+new worlds before we spend inference calls or draw cognitive claims.
+See [M19.md](M19.md).
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
