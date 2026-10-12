@@ -118,9 +118,15 @@ class SurlifeParallelEnv(ParallelEnv[str, dict[str, Any], int]):
             raise ValueError("call reset() first; cannot step finished episode")
         if not isinstance(actions, dict) or set(actions) != set(self.agents):
             raise ValueError("one valid action per active organism required")
-        if any(type(value) is not int or not 0 <= value <= WAIT_ACTION
+        # Gymnasium Discrete.sample() returns numpy.integer scalars.
+        # Normalize these at the boundary, while rejecting bool, floats,
+        # arrays and out-of-range values before the referee is mutated.
+        if any(isinstance(value, (bool, np.bool_)) or
+               not isinstance(value, (int, np.integer)) or
+               not 0 <= value <= WAIT_ACTION
                for value in actions.values()):
             raise ValueError("invalid PettingZoo action value")
+        actions = {agent: int(value) for agent, value in actions.items()}
         previous = list(self.agents)
         # Every non-active participant remains dead in the inner referee.
         admitted = {
