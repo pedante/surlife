@@ -47,6 +47,8 @@ def main() -> None:
                         help="M1.7 two to four nonnegative held-out seeds")
     parser.add_argument("--promote-policy-out",
                         help="M1.7 NEW policy snapshot path, only written when gate passes")
+    parser.add_argument("--policy-in",
+                        help="M1.6 only: inherit a data-only policy promoted by M1.7")
     parser.add_argument("--verify-adaptive-file",
                         help="offline verify M1.6 actions, accounting and policy updates")
     parser.add_argument("--verify-m17-file",
