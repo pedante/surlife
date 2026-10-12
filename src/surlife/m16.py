@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from time import monotonic
 from pathlib import Path
 from random import Random
 
@@ -123,6 +125,16 @@ def adaptive_arm(seed: int, cases: list[dict], args, gateway, state: dict | None
             act = cheap
             if decision["consult"] and not rate_limited:
                 prior = gateway.calls
+                live = args.provider in ("google", "openrouter")
+                began = monotonic()
+                if live:
+                    print(
+                        f"[M1.6] tick {arena.tick + 1}/{len(cases)}: "
+                        f"consulting {args.provider} (request {prior + 1}/"
+                        f"{gateway.limit}, timeout "
+                        f"{getattr(gateway, 'timeout_seconds', 'provider default')}s)",
+                        file=sys.stderr, flush=True,
+                    )
                 try:
                     reply = gateway.ask(_prompt(own), mode="benchmark",
                                         benchmark_items=len(own.task.items))
@@ -142,6 +154,15 @@ def adaptive_arm(seed: int, cases: list[dict], args, gateway, state: dict | None
                     details = getattr(exc, "generation_diagnostics", None)
                     if isinstance(details, dict):
                         info["generation_diagnostics"] = details
+                if live:
+                    print(
+                        f"[M1.6] tick {arena.tick + 1}: "
+                        f"{info.get('status', 'unknown')}, "
+                        f"elapsed {monotonic() - began:.1f}s"
+                        + (f", reason={info['failure_reason']}"
+                           if info.get("failure_reason") else ""),
+                        file=sys.stderr, flush=True,
+                    )
                 if gateway.calls > prior:
                     charges["a"] = 1
                 elif info["source"] == "greedy_provider_fallback":
