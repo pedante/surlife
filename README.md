@@ -8,8 +8,21 @@
 
 **Existing experiments:** M1.x already has bounded model consultations, pending prompt hypotheses and evaluation controls; M2.0 introduces deterministic shared stock/soil/harvest actions as **one optional experiment**, not Surlife's defining world or intended future product. **We are not building an agricultural or spatial world simulator.**
 
-**Next:** [M2.1 autonomous prompt-mutation tournament](foundation/EVOLUTION_FIRST.md), followed by **M2.2 isolated Python-module mutation**, priced environmental interventions (weather as a common, bounded modifier), and ultimately inheritance. Read [ADR-0002](foundation/decisions/ADR-0002-evolution-first.md) for the explicit direction change and safety/measurement requirements. **Neither M2.1 nor M2.2 is implemented yet.**
+**Next:** [M2.1 autonomous prompt-mutation tournament](foundation/EVOLUTION_FIRST.md), followed by **M2.2 isolated Python-module mutation**, priced environmental interventions (weather as a common, bounded modifier), and ultimately inheritance. Read [ADR-0002](foundation/decisions/ADR-0002-evolution-first.md) for the explicit direction change and safety/measurement requirements. **M2.1 and M2.1-C prompt-mutation research slices are implemented; their real-model improvement is not yet established. M2.2 isolated code evolution is not implemented.**
 
+
+## Multiple organisms and interchangeable arenas — opt-in population-v1
+
+**Implemented infrastructure, not yet many-agent LLM evolution:** `surlife --multi`
+can run 2–128 independently identified, trusted scripted organisms against
+`task-duel` or `task-work`, or route exactly two through unchanged
+`legacy-m0` and optional `legacy-m20` referees. A versioned event trace and
+offline verifier prepare a future local web observer and fast batch comparisons.
+It has no real model calls, generated code execution or arbitrary external imports.
+
+Run `surlife --multi --population 8 --population-arena task-duel --population-brains greedy,optimal,random,wait --seed 17 --ticks 24 --benchmark-out out/population-8.json`.
+See [POPULATION.md](POPULATION.md) and
+[ADR-0003](foundation/decisions/ADR-0003-population-adapters.md).
 
 ## First runnable prototype (M0)
 
