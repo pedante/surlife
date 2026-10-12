@@ -32,6 +32,10 @@ def main() -> None:
     parser.add_argument("--m11", action="store_true", help="M1.1 staged, feedback-aware organism")
     parser.add_argument("--m12", action="store_true",
                         help="M1.2 observable organism; with --evaluate-soul use multi-cohort evaluation")
+    parser.add_argument("--m13", action="store_true",
+                        help="M1.3 action-contract experiment with legally admissible menu")
+    parser.add_argument("--action-contract", choices=("menu", "raw"), default="menu",
+                        help="M1.3 only: present cost-feasible menu or raw-mask control")
     parser.add_argument("--cognition", choices=("selective", "always", "never"),
                         default="selective", help="M1.1 host-owned cognition schedule")
     parser.add_argument("--evaluate-soul", metavar="FILE",
@@ -46,8 +50,8 @@ def main() -> None:
     parser.add_argument("--check-model", action="store_true",
                         help="check OpenRouter public model catalog without an LLM request or API key")
     args = parser.parse_args()
-    if args.m11 and args.m12:
-        parser.error("choose --m11 or --m12, not both")
+    if sum((args.m11, args.m12, args.m13)) > 1:
+        parser.error("choose only one experiment stage: --m11, --m12 or --m13")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
     if args.check_model:
@@ -58,7 +62,7 @@ def main() -> None:
             parser.error(str(exc))
         return
     if args.evaluate_soul:
-        if args.m12:
+        if args.m12 or args.m13:
             from .evaluation_v2 import evaluate_snapshot_v2 as evaluate_snapshot
         else:
             from .evaluation import evaluate_snapshot
@@ -74,7 +78,7 @@ def main() -> None:
         with Journal(path) as journal:
             print(json.dumps(journal.replay(args.replay), indent=2, sort_keys=True))
         return
-    if args.m11 or args.m12:
+    if args.m11 or args.m12 or args.m13:
         from .m11 import run_m11
         try:
             result = run_m11(args, path)

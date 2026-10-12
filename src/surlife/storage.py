@@ -118,6 +118,7 @@ class Journal:
         by_action_source: dict[str, dict] = {}
         shadow_llm = {"compared": 0, "better": 0, "same": 0, "worse": 0,
                       "total_score_delta": 0}
+        action_contract_stats = {"menu_actions": 0, "menu_violations": 0}
         earned = {"a": 0, "b": 0}
         consultations = {"a": 0, "b": 0}
         n = 0
@@ -161,6 +162,11 @@ class Journal:
                         usage_totals[k] += usage[k]
             for actor in AGENTS:
                 info = data.get("model_calls", {}).get(actor, {})
+                if actor == "a" and info.get("action_contract") == "menu":
+                    action_contract_stats["menu_actions"] += 1
+                    action_contract_stats["menu_violations"] += int(
+                        info.get("contract_violation") is True
+                    )
                 source = str(info.get("action_source", manifest.get("policies", {}).get(actor, "scripted")))
                 row = by_action_source.setdefault(source, {
                     "attempts": 0, "legal": 0, "invalid": 0, "optimal": 0,
@@ -215,4 +221,5 @@ class Journal:
                                      if attempts[a] else None for a in AGENTS},
                 "total_legal_regret": total_regret,
                 "consultation_modes": consultation_modes,
-                "by_action_source": by_action_source, "llm_vs_shadow_greedy": shadow_llm}
+                "by_action_source": by_action_source, "llm_vs_shadow_greedy": shadow_llm,
+                "action_contract_stats": action_contract_stats}

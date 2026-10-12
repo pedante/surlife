@@ -41,6 +41,32 @@ ACTION_SCHEMA = {
 }
 
 
+
+def action_menu_schema(allowed_masks: list[int]) -> dict:
+    """Dynamic JSON-schema enum; host still independently checks the reply."""
+    if (not isinstance(allowed_masks, list) or not allowed_masks
+            or len(allowed_masks) > 256
+            or any(type(m) is not int or not 0 <= m < 256 for m in allowed_masks)
+            or allowed_masks != sorted(set(allowed_masks))):
+        raise ValueError("invalid legal-action menu")
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "surlife_legal_action",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "mask": {"type": "integer", "enum": allowed_masks},
+                    "soul_update": {"type": "string", "enum": [""]},
+                },
+                "required": ["mask", "soul_update"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
 REFLECTION_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
@@ -206,9 +232,13 @@ class OpenRouterGateway:
         except (ValueError, TypeError) as e:
             raise GatewayError("invalid provider response JSON", "invalid_provider_json") from e
 
-    def ask(self, messages: list[dict], *, mode: str = "action") -> Reply:
+    def ask(self, messages: list[dict], *, mode: str = "action",
+            allowed_masks: list[int] | None = None) -> Reply:
         if mode not in ("action", "reflection"):
             raise ValueError("invalid model consultation mode")
+        if mode != "action" and allowed_masks is not None:
+            raise ValueError("legal-action menu is only valid for action calls")
+        schema = action_menu_schema(allowed_masks) if allowed_masks is not None else ACTION_SCHEMA
         if not self.remaining:
             raise GatewayError("per-run request cap reached")
         api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
@@ -221,7 +251,7 @@ class OpenRouterGateway:
         }
         # Prefer a concise answer over spending the entire completion budget
         # on hidden reasoning. Availability/behavior varies by free model.
-        payload["response_format"] = ACTION_SCHEMA if mode == "action" else REFLECTION_SCHEMA
+        payload["response_format"] = schema if mode == "action" else REFLECTION_SCHEMA
         payload["provider"] = {"require_parameters": True}
         if self.reasoning == "off":
             payload["reasoning"] = {"enabled": False}
@@ -291,7 +321,8 @@ class FakeGateway(OpenRouterGateway):
     def __init__(self, max_requests: int = 6):
         super().__init__(max_requests=max_requests)
 
-    def ask(self, messages: list[dict], *, mode: str = "action") -> Reply:
+    def ask(self, messages: list[dict], *, mode: str = "action",
+            allowed_masks: list[int] | None = None) -> Reply:
         if not self.remaining:
             raise GatewayError("per-run request cap reached")
         self.calls += 1

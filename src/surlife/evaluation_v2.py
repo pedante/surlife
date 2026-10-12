@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 
 from .core import Arena
+from .action_menu import menu_messages
 from .gateway import FakeGateway, GatewayError, OpenRouterGateway
 from .m11 import EvolutionSoul, task_fingerprint
 from .model_registry import check_model
@@ -84,6 +85,12 @@ def evaluate_snapshot_v2(args) -> dict:
         raise ValueError("snapshot does not contain one pending soul revision")
     if soul.pending[0]["baseline_hash"] != soul.sha256:
         raise ValueError("pending revision does not match active prompt")
+    m13 = bool(getattr(args, "m13", False))
+    contract = getattr(args, "action_contract", "menu") if m13 else "raw"
+    if contract not in ("raw", "menu"):
+        raise ValueError("invalid evaluation action contract")
+    if soul.action_contract != contract:
+        raise ValueError("soul was created under a different action contract")
     plan = _validated_plan(args, soul)
     cohorts = _make_holdouts(plan, set(soul.seen_task_hashes))
 
@@ -107,6 +114,7 @@ def evaluate_snapshot_v2(args) -> dict:
         revisions=[*soul.revisions],
         seen_task_hashes=list(soul.seen_task_hashes),
         history_complete=True,
+        action_contract=contract,
     )
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     unknown_usage = 0
@@ -138,7 +146,14 @@ def evaluate_snapshot_v2(args) -> dict:
             for label in order:
                 tested = soul if label == "baseline" else candidate
                 try:
-                    reply = gw.ask(tested.messages(obs))
+                    messages = tested.messages(obs)
+                    allowed = None
+                    if m13 and contract == "menu":
+                        messages, allowed = menu_messages(messages, obs)
+                    if allowed is None:
+                        reply = gw.ask(messages)
+                    else:
+                        reply = gw.ask(messages, allowed_masks=allowed)
                 except GatewayError as error:
                     account(error.model, error.usage)
                     failure = {"cohort": cohort_index, "task_index": task_index,
@@ -154,6 +169,10 @@ def evaluate_snapshot_v2(args) -> dict:
                     "mask": reply.mask, "score": score, "legal": score >= 0,
                     "model": reply.model,
                 }
+                if m13 and contract == "menu":
+                    pair[label]["contract_violation"] = (
+                        type(reply.mask) is not int or reply.mask not in allowed
+                    )
 
             if failure is not None:
                 break
@@ -163,7 +182,8 @@ def evaluate_snapshot_v2(args) -> dict:
             break
 
     evaluation = {
-        "protocol": "m12-multi-cohort-held-out-v1",
+        "protocol": "m13-admissible-menu-holdout-v1" if m13 else "m12-multi-cohort-held-out-v1",
+        "action_contract": contract,
         **plan,
         "provider": args.provider,
         "requested_model": args.model if args.provider == "openrouter" else "surlife/fake-model",
@@ -182,6 +202,8 @@ def evaluate_snapshot_v2(args) -> dict:
             candidate_score = sum(p["candidate"]["score"] for p in pairs)
             baseline_invalid = sum(not p["baseline"]["legal"] for p in pairs)
             candidate_invalid = sum(not p["candidate"]["legal"] for p in pairs)
+            baseline_violations = sum(p["baseline"].get("contract_violation", False) for p in pairs)
+            candidate_violations = sum(p["candidate"].get("contract_violation", False) for p in pairs)
             gain = candidate_score - baseline_score
             wins += sum(p["candidate"]["score"] > p["baseline"]["score"] for p in pairs)
             losses += sum(p["candidate"]["score"] < p["baseline"]["score"] for p in pairs)
@@ -192,8 +214,11 @@ def evaluate_snapshot_v2(args) -> dict:
                 "candidate_score": candidate_score, "gain": gain,
                 "baseline_invalid": baseline_invalid,
                 "candidate_invalid": candidate_invalid,
-                "passes": (candidate_invalid <= baseline_invalid and
-                           gain >= plan["min_gain_per_cohort"]),
+                "baseline_contract_violations": baseline_violations,
+                "candidate_contract_violations": candidate_violations,
+                "passes": (candidate_invalid <= baseline_invalid
+                           and candidate_violations <= baseline_violations
+                           and gain >= plan["min_gain_per_cohort"]),
             })
         accepted = all(row["passes"] for row in breakdown) and wins > losses
         evaluation.update({
