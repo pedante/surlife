@@ -175,6 +175,9 @@ class ResponseDriver:
                                           mask < 0 or mask >= 32):
                     self.blocked = True
                     self.aborted_reason = "invalid_mask"
+                elif response.get("note") is not None:
+                    self.blocked = True
+                    self.aborted_reason = "action_contained_mutation"
         if self.blocked:
             return None, record
         return (response["note"] if kind == "reflection" else response["mask"]), record
@@ -377,6 +380,12 @@ def _episode(seed: int, ticks: int, modes: dict, driver: ResponseDriver) -> dict
             if score is not None:
                 p.soul.observe(tick, score, row["optimal_score"],
                                row["rewards"][actor], row["after"][actor])
+                # Reflection sees the organism's actual prior work and its
+                # referee feedback, never the holdout answer or rival memory.
+                p.soul.memory[-1].update({
+                    "task": row["task"], "submitted_mask": row["actions"][actor],
+                    "weather": row["weather"], "energy_after": row["after"][actor],
+                })
         row["intents"] = intents
         row["mutations"] = mutations
         row["genomes_before"] = previous_genomes
