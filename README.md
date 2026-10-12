@@ -56,6 +56,19 @@ journal. A positive model score does not prove survival advantage after
 consultation costs. See [M14.md](M14.md) for the experiment protocol,
 run commands and important caveats about constructed Greedy traps.
 
+## Google Gemini free-tier API experiments (M1.5)
+
+M1.5 adds an optional `google-genai` Interactions provider for the
+headroom benchmark: `surlife --m14 --provider google`. It reads
+`GOOGLE_API_KEY` from the local environment, accepts only reviewed
+free-tier Gemini model identifiers (default `gemini-3.8-flash`) and
+preserves the current referee, request caps, no-retry behavior and
+independent JSON replay. Model availability and a free-tier pricing
+listing do **not** establish that a particular Google project is
+on a free billing tier. Read [M15.md](M15.md) for installation,
+local key setup and one-call pilot. Older model-provider paths remain
+unchanged.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.

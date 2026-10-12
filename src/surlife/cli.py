@@ -16,10 +16,11 @@ def main() -> None:
     parser.add_argument("--a", choices=sorted([*POLICIES, "llm"]), default="greedy")
     parser.add_argument("--b", choices=sorted(POLICIES), default="optimal")
     parser.add_argument("--db", default="out/surlife.sqlite")
-    parser.add_argument("--provider", choices=("fake", "openrouter"), default="fake")
-    parser.add_argument("--model", default="dots-studio/dots-3-note-preview:free", help="verified free structured-output model; use --check-model before inference")
+    parser.add_argument("--provider", choices=("fake", "openrouter", "google"), default="fake")
+    parser.add_argument("--model", default=None, help="provider-selected default; use --check-model before inference")
     parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
-    parser.add_argument("--max-output-tokens", type=int, default=512)
+    parser.add_argument("--max-output-tokens", type=int, default=None,
+                        help="output including thinking tokens: Google default 4096 (max 8192), other providers default 512")
     parser.add_argument("--reasoning", choices=("off", "low", "auto"), default="off",
                         help="OpenRouter reasoning: off (default), low effort, or auto")
     parser.add_argument("--souls-dir", default="out/souls")
@@ -60,6 +61,13 @@ def main() -> None:
     parser.add_argument("--check-model", action="store_true",
                         help="check OpenRouter public model catalog without an LLM request or API key")
     args = parser.parse_args()
+    if args.model is None:
+        args.model = ("gemini-3.8-flash" if args.provider == "google"
+                      else "dots-studio/dots-3-note-preview:free")
+    if args.max_output_tokens is None:
+        args.max_output_tokens = 4096 if args.provider == "google" else 512
+    if args.provider == "google" and not (args.m14 or args.check_model or args.verify_benchmark_file):
+        parser.error("--provider google is supported for --m14 benchmark runs in this PR")
     if sum((args.m11, args.m12, args.m13, args.m14)) > 1:
         parser.error("choose only one experiment stage: --m11, --m12, --m13 or --m14")
     if args.seed < 0 or args.ticks < 0:
@@ -73,7 +81,10 @@ def main() -> None:
             parser.error(str(exc))
         return
     if args.check_model:
-        from .model_registry import check_model
+        if args.provider == "google":
+            from .gemini_gateway import check_gemini_model as check_model
+        else:
+            from .model_registry import check_model
         try:
             print(json.dumps(check_model(args.model), indent=2, sort_keys=True))
         except ValueError as exc:
