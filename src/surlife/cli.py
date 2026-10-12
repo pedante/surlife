@@ -37,6 +37,22 @@ def main() -> None:
                         help="M1.3 action-contract experiment with legally admissible menu")
     parser.add_argument("--m14", action="store_true",
                         help="M1.4 deterministic headroom and survival benchmark")
+    parser.add_argument("--m16", action="store_true",
+                        help="M1.6 experience-adaptive consultation policy")
+    parser.add_argument("--m17", action="store_true",
+                        help="M1.7 inheritance and matched held-out policy comparison")
+    parser.add_argument("--train-report", action="append", default=[],
+                        help="M1.7 verified M1.6 training report; repeat up to four times")
+    parser.add_argument("--holdout-seeds", default="101,103",
+                        help="M1.7 two to four nonnegative held-out seeds")
+    parser.add_argument("--promote-policy-out",
+                        help="M1.7 NEW policy snapshot path, only written when gate passes")
+    parser.add_argument("--policy-in",
+                        help="M1.6 only: inherit a data-only policy promoted by M1.7")
+    parser.add_argument("--verify-adaptive-file",
+                        help="offline verify M1.6 actions, accounting and policy updates")
+    parser.add_argument("--verify-m17-file",
+                        help="offline verify M1.7 cohort comparison and inheritance")
     parser.add_argument("--benchmark-cases", type=int, default=12)
     parser.add_argument("--benchmark-items", type=int, default=12)
     parser.add_argument("--benchmark-profile", choices=("mixed", "trap", "random"),
@@ -66,12 +82,26 @@ def main() -> None:
                       else "dots-studio/dots-3-note-preview:free")
     if args.max_output_tokens is None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
-    if args.provider == "google" and not (args.m14 or args.check_model or args.verify_benchmark_file):
-        parser.error("--provider google is supported for --m14 benchmark runs in this PR")
-    if sum((args.m11, args.m12, args.m13, args.m14)) > 1:
-        parser.error("choose only one experiment stage: --m11, --m12, --m13 or --m14")
+    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file):
+        parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17)) > 1:
+        parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_adaptive_file:
+        from .m16 import verify_m16_file
+        try:
+            print(json.dumps(verify_m16_file(args.verify_adaptive_file), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.verify_m17_file:
+        from .m17 import verify_m17_file
+        try:
+            print(json.dumps(verify_m17_file(args.verify_m17_file), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_benchmark_file:
         from .m14 import verify_report_file
         try:
@@ -97,6 +127,20 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m16:
+        from .m16 import run_m16
+        try:
+            print(json.dumps(run_m16(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m17:
+        from .m17 import run_m17
+        try:
+            print(json.dumps(run_m17(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return

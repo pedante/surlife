@@ -69,6 +69,23 @@ on a free billing tier. Read [M15.md](M15.md) for installation,
 local key setup and one-call pilot. Older model-provider paths remain
 unchanged.
 
+## Adaptive cognition and inherited metacognition (M1.6 / M1.7)
+
+**Opt-in experimental implementations:** `surlife --m16` replaces the
+host-owned fixed consultation schedule with a bounded, organism-owned
+two-context policy. It learns from post-outcome virtual-energy advantage
+versus a no-inference Greedy counterfactual. The policy sees only current
+public task features and its own prior learning state; model requests remain
+bounded and independently billed by the gateway. See [M16.md](M16.md).
+
+`surlife --m17` aggregates independently replay-verified M1.6 policy
+experience across runs, excludes overlapping training/held-out puzzles,
+compares inherited versus cold-start strategies on matched task streams,
+and optionally saves a data-only policy snapshot **only after** a strict
+multi-seed gate. See [M17.md](M17.md). Neither stage executes model-generated
+code or proves open-ended biological evolution. Classical exact DP remains
+unpriced and superior in this narrow task family.
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
