@@ -1,0 +1,33 @@
+name: M1.9 deterministic non-additive TaskPacks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  taskpacks-offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install offline unit tests
+        run: python -m pip install -e '.[test]'
+      - name: Independent task scoring and referee tests
+        run: pytest -q tests/test_m19.py
+      - name: Coverage taskpack smoke
+        run: |
+          surlife --m19 --provider fake --a greedy --b greedy --m19-pack coverage --benchmark-cases 4 --benchmark-items 9 --seed 17 --benchmark-out out/m19-coverage-ci.json
+          surlife --verify-m19-file out/m19-coverage-ci.json
+      - name: Mixed taskpack smoke
+        run: |
+          surlife --m19 --provider fake --a greedy --b greedy --m19-pack mixed --benchmark-cases 4 --benchmark-items 9 --seed 17 --benchmark-out out/m19-mixed-ci.json
+          surlife --verify-m19-file out/m19-mixed-ci.json
