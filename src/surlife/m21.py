@@ -172,7 +172,14 @@ def _episode(seed: int, ticks: int, modes: dict[str, str],
                for actor in AGENTS}
     rows: list[dict] = []
     consultations: list[dict] = []
-    history: list[dict] = []
+    # Host-only future task fingerprints protect the holdout from accidental
+    # overlap with ANY live tick; these fingerprints are not shown to agents.
+    live_task_hashes = set()
+    stream = Arena(seed)
+    for future_tick in range(ticks):
+        stream.tick = future_tick
+        live_task_hashes.add(task_key(stream.observations()["a"].task))
+    trial_hashes: set[str] = set()
     for tick in range(ticks):
         observations = arena.observations()
         actions: dict[str, Action] = {}
@@ -203,9 +210,7 @@ def _episode(seed: int, ticks: int, modes: dict[str, str],
             elif intent == "trial_pending":
                 if player.pending is None:
                     raise AssertionError("trial without candidate")
-                excluded = set(player.seen)
-                excluded.update(task_key(row.task) for row in observations.values())
-                excluded.update(trial["task_hash"] for trial in player.trials)
+                excluded = live_task_hashes | trial_hashes
                 trial_obs = _holdout(seed, actor, len(player.trials), excluded)
                 candidate_prompt = (player.soul.full_prompt + "\nExperience note: "
                                     + player.pending["note"])
@@ -222,6 +227,7 @@ def _episode(seed: int, ticks: int, modes: dict[str, str],
                     "candidate_mask": answer, "baseline_mask": baseline,
                 }
                 player.trials.append(record)
+                trial_hashes.add(record["task_hash"])
                 mutations.append({"actor": actor, "decision": "trial",
                                   "candidate_hash": player.pending["candidate_hash"],
                                   **record})
