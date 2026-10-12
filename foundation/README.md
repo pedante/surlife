@@ -2,6 +2,10 @@
 
 **Purpose:** turn the Surlife/Igor Life vision into a testable engineering proposal through independent LLM critique and explicit decisions. This folder is **not** the runtime of the arena.
 
+## Current implementation compass (2026-10-12)
+
+The original foundation documents describe the intended **evolving prompt + evolving Python-module organism**. Prototypes through M2.0 now exist, but the M2.0 stock/soil ecology is **only an optional task fixture**. The next recommended engineering slice is [Evolution-first M2.1/M2.2](EVOLUTION_FIRST.md); the approved direction is [ADR-0002](decisions/ADR-0002-evolution-first.md). The frozen iteration 0001 must not be overwritten. Historical "no software implemented" and "no reviews" passages below describe the original planning period, not the current repository state.
+
 ## Start here (human or AI)
 1. [CONTEXT.md](CONTEXT.md) — compact brief, vision, constraints, and source-of-truth map.
 2. [PLAN.md](PLAN.md) — **the single current proposal** we are iterating on.
