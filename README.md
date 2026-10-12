@@ -81,8 +81,13 @@ bounded and independently billed by the gateway. See [M16.md](M16.md).
 `surlife --m17` aggregates independently replay-verified M1.6 policy
 experience across runs, excludes overlapping training/held-out puzzles,
 compares inherited versus cold-start strategies on matched task streams,
-and optionally saves a data-only policy snapshot **only after** a strict
-multi-seed gate. See [M17.md](M17.md). Neither stage executes model-generated
+and optionally saves a data-only policy snapshot **only after** an
+**M1.7-v2 dual-control gate**: improvement versus both cold-start and
+no-inference Greedy across held-out seeds, with zero provider failures.
+M1.6-v2 never confuses failed consultations with successful reasoning.
+Model/provider/generation scoping prevents fake training from being
+inherited into a live Gemini policy. Original v1 reports remain
+offline-verifiable, but new training is required for v2 promotion. See [M17.md](M17.md). Neither stage executes model-generated
 code or proves open-ended biological evolution. Classical exact DP remains
 unpriced and superior in this narrow task family.
 
