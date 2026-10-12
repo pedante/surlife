@@ -47,6 +47,16 @@ def main() -> None:
                         help="M1.8 single-response-bank multi-policy cognition tournament")
     parser.add_argument("--m19", action="store_true",
                         help="M1.9 fully offline coverage/synergy task-pack benchmark")
+    parser.add_argument("--m110", action="store_true",
+                        help="M1.10 shared-model-response cognition tournament in M1.9 worlds")
+    parser.add_argument("--m110-pack", choices=("coverage", "synergy", "mixed"),
+                        default="mixed", help="M1.10 task family")
+    parser.add_argument("--m110-bank-in",
+                        help="M1.10 previously verified bank; rerun policies without API calls")
+    parser.add_argument("--m110-virtual-cap", type=int, default=4,
+                        help="M1.10 per-policy virtual cognition cap")
+    parser.add_argument("--verify-m110-file",
+                        help="offline verify M1.10 taskpack scoring, bank and referee replay")
     parser.add_argument("--m19-pack", choices=("coverage", "synergy", "mixed"),
                         default="mixed", help="M1.9 non-additive task family")
     parser.add_argument("--verify-m19-file",
@@ -98,12 +108,20 @@ def main() -> None:
                       else "dots-studio/dots-3-note-preview:free")
     if args.max_output_tokens is None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
-    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file):
+    if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_m110_file:
+        from .m110 import verify_m110_file
+        try:
+            print(json.dumps(verify_m110_file(args.verify_m110_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_m19_file:
         from .m19 import verify_m19_file
         try:
@@ -159,6 +177,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m110:
+        from .m110 import run_m110
+        try:
+            print(json.dumps(run_m110(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return
