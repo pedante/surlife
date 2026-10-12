@@ -243,11 +243,26 @@ def test_actual_google_sdk_wiring_is_stateless_v1_and_closes(monkeypatch):
                         mode="benchmark", benchmark_items=12)
     assert reply.mask == 257
     assert calls["client_key"] == "DUMMY"
-    assert calls["http_options"] == {"api_version": "v1"}
+    assert calls["http_options"] == {
+        "api_version": "v1", "timeout": 90000,
+        "retry_options": {"attempts": 0},
+    }
     assert calls["body"]["store"] is False
     assert calls["closed"] is True
     assert "tools" not in calls["body"]
 
+
+
+def test_gemini_timeout_is_validated_and_forwarded(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "DUMMY")
+    observed = {}
+    gw = GeminiGateway(timeout_seconds=45, transport=lambda **kw: observed.update(kw) or answer())
+    gw.ask([{"role": "user", "content": "{}"}], mode="benchmark", benchmark_items=12)
+    assert observed["timeout_seconds"] == 45
+    assert gw.calls == 1
+    for bad in [0, 1, 9, 181, "90", True]:
+        with pytest.raises(ValueError, match="timeout"):
+            GeminiGateway(timeout_seconds=bad, transport=lambda **kw: answer())
 
 
 def test_gemini_higher_default_and_hard_ceiling_for_thinking():
