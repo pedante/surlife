@@ -49,6 +49,18 @@ def main() -> None:
                         help="M1.9 fully offline coverage/synergy task-pack benchmark")
     parser.add_argument("--m110", action="store_true",
                         help="M1.10 shared-model-response cognition tournament in M1.9 worlds")
+    parser.add_argument("--m111", action="store_true",
+                        help="M1.11 offline TaskPack-specific inherited cognition and holdouts")
+    parser.add_argument("--m111-train-bank", action="append", default=[],
+                        help="M1.11 verified M1.10 training response-bank report (repeat 1-4)")
+    parser.add_argument("--m111-holdout-bank", action="append", default=[],
+                        help="M1.11 disjoint verified held-out response-bank report (repeat 2-4)")
+    parser.add_argument("--m111-virtual-cap", type=int, default=4,
+                        help="M1.11 per-policy simulated consultation cap (1-48)")
+    parser.add_argument("--m111-promote-policy-out",
+                        help="M1.11 new data-only policy path, written only if dual-control gate passes")
+    parser.add_argument("--verify-m111-file",
+                        help="independently verify M1.11 learning, holdout outcomes and gate")
     parser.add_argument("--m110-pack", choices=("coverage", "synergy", "mixed"),
                         default="mixed", help="M1.10 task family")
     parser.add_argument("--m110-bank-in",
@@ -110,10 +122,18 @@ def main() -> None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
     if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.m110 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file or args.verify_m110_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19, args.m110, args.m111)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_m111_file:
+        from .m111 import verify_m111_file
+        try:
+            print(json.dumps(verify_m111_file(args.verify_m111_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_m110_file:
         from .m110 import verify_m110_file
         try:
@@ -177,6 +197,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m111:
+        from .m111 import run_m111
+        try:
+            print(json.dumps(run_m111(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return
