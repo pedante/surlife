@@ -231,5 +231,9 @@ def test_cli_is_offline_and_provenance_enforced(tmp_path, monkeypatch):
             benchmark_out=str(tmp_path / "wrong.json"),
         ))
     with pytest.raises(ValueError, match="virtual consultation cap"):
-        build_m111(json.loads((tmp_path / "m111-eval.json").read_text())["training"],
-                   [], cap=0)  # malformed inputs fail early
+        build_m111(
+            [json.loads((tmp_path / "m110-bank-17.json").read_text())],
+            [json.loads((tmp_path / "m110-bank-101.json").read_text()),
+             json.loads((tmp_path / "m110-bank-103.json").read_text())],
+            cap=0,
+        )
