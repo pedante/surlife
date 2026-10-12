@@ -111,6 +111,7 @@ def _collect(args, cases: list[dict]) -> list[dict]:
         actual = arena.observations()["a"]
         neutral = Observation(tick, actual.weather, case["task"], START_ENERGY)
         before = gateway.calls
+        expected = "surlife/fake-model" if args.provider == "fake" else args.model
         started = monotonic()
         if args.provider != "fake":
             print(f"[M1.8] sampling {tick + 1}/{len(cases)}: {args.provider}",
@@ -118,7 +119,6 @@ def _collect(args, cases: list[dict]) -> list[dict]:
         try:
             reply = gateway.ask(_prompt(neutral), mode="benchmark",
                                 benchmark_items=len(case["task"].items))
-            expected = "surlife/fake-model" if args.provider == "fake" else args.model
             if reply.model != expected:
                 mismatch = GatewayError("unreviewed model substitution",
                                         "routed_model_mismatch")
