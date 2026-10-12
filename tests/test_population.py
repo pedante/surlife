@@ -8,7 +8,7 @@ from random import Random
 
 import pytest
 
-from surlife.core import Action, Arena, greedy, optimal
+from surlife.core import Action, Arena, WORLD, greedy, optimal
 from surlife.m20 import PersistentArena, decide
 from surlife.population import (
     ARENAS, HABITAT_CONTRACT, TASK_CONTRACT, BuiltinOrganism, LegacyM0Adapter,
