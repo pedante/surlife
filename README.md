@@ -160,6 +160,17 @@ legality regressions. Beam search and exact oracle remain visible
 unpriced references. Old knapsack policies are not mixed into TaskPack
 learning. See [M111.md](M111.md).
 
+## M2.1-C — Paired prompt-mutation trials with independently replayable model responses
+
+`surlife --m21c` runs **offline by default** with a scripted, prompt-sensitive test
+provider. A versioned response bank permits reproducing parent-versus-candidate
+LLM calls on the exact same hidden task, preserving full request/usage costs,
+failure reasons and the frozen control. An opt-in pinned **zero-priced OpenRouter**
+provider is gated behind separate local authorizations and live catalog preflight.
+No API calls were made to develop this stage. Prompt-score promotion is **not**
+a claim of net survival or general intelligence improvement.
+See [M21C.md](M21C.md) for the offline command and stringent live restrictions.
+
 ## M2.1 — Offline organism-owned prompt-mutation tournament
 
 `surlife --m21` introduces an opt-in, **scripted-fake** proof of the
