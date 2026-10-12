@@ -150,6 +150,20 @@ legality regressions. Beam search and exact oracle remain visible
 unpriced references. Old knapsack policies are not mixed into TaskPack
 learning. See [M111.md](M111.md).
 
+## First persistent shared-resource world (M2.0)
+
+`surlife --m20` adds a new **offline persistent ecology**, separate
+from all historical puzzle and cognition protocols. Two agents interact
+with the same renewable stock and soil fertility across multiple ticks:
+heavy harvesting consumes more resources and can degrade regeneration,
+while cultivation costs current energy but improves shared future
+opportunities. The trusted referee validates simultaneous actions,
+alternates scarce-resource priority, conserves the virtual-energy
+ledger and prevents resurrection of dead organisms. Every experiment
+also runs mirrored seat assignments and supports fully independent
+replay. Pre-installed extractive, steward, opportunist and rest policies
+are **not yet learning LLM agents**. See [M20.md](M20.md).
+
 ## Planning and recursive LLM reviews
 
 **[Open the Surlife foundation workspace](foundation/README.md)** — current project plan, compact LLM context, independent review prompts, scoring criteria, decisions, iteration history and a future-idea backlog.
