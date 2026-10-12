@@ -34,6 +34,16 @@ def main() -> None:
                         help="M1.2 observable organism; with --evaluate-soul use multi-cohort evaluation")
     parser.add_argument("--m13", action="store_true",
                         help="M1.3 action-contract experiment with legally admissible menu")
+    parser.add_argument("--m14", action="store_true",
+                        help="M1.4 deterministic headroom and survival benchmark")
+    parser.add_argument("--benchmark-cases", type=int, default=12)
+    parser.add_argument("--benchmark-items", type=int, default=12)
+    parser.add_argument("--benchmark-profile", choices=("mixed", "trap", "random"),
+                        default="mixed")
+    parser.add_argument("--benchmark-out",
+                        help="optional NEW JSON report path for independent offline audit")
+    parser.add_argument("--verify-benchmark-file",
+                        help="offline replay and verify an existing M1.4 JSON report")
     parser.add_argument("--action-contract", choices=("menu", "raw"), default="menu",
                         help="M1.3 only: present cost-feasible menu or raw-mask control")
     parser.add_argument("--cognition", choices=("selective", "always", "never"),
@@ -50,10 +60,18 @@ def main() -> None:
     parser.add_argument("--check-model", action="store_true",
                         help="check OpenRouter public model catalog without an LLM request or API key")
     args = parser.parse_args()
-    if sum((args.m11, args.m12, args.m13)) > 1:
-        parser.error("choose only one experiment stage: --m11, --m12 or --m13")
+    if sum((args.m11, args.m12, args.m13, args.m14)) > 1:
+        parser.error("choose only one experiment stage: --m11, --m12, --m13 or --m14")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_benchmark_file:
+        from .m14 import verify_report_file
+        try:
+            print(json.dumps(verify_report_file(args.verify_benchmark_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.check_model:
         from .model_registry import check_model
         try:
@@ -68,6 +86,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m14:
+        from .m14 import run_m14
+        try:
+            print(json.dumps(run_m14(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return

@@ -67,6 +67,56 @@ def action_menu_schema(allowed_masks: list[int]) -> dict:
     }
 
 
+
+
+def benchmark_action_schema(items: int) -> dict:
+    """Bound the mask length without enumerating exponentially many legal actions."""
+    if type(items) is not int or not 8 <= items <= 14:
+        raise ValueError("M1.4 item count must be 8..14")
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "surlife_benchmark_action",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "mask": {"type": "integer", "minimum": 0,
+                             "maximum": (1 << items) - 1},
+                    "soul_update": {"type": "string", "enum": [""]},
+                },
+                "required": ["mask", "soul_update"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+def parse_benchmark_answer(content: str, model: str, usage: dict, items: int) -> Reply:
+    """Parse large masks; do NOT check capacity or silently repair bad choices."""
+    if not isinstance(content, str) or len(content) > 4096:
+        raise GatewayError("invalid benchmark output content", "invalid_content")
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    first = cleaned.find("{")
+    if first < 0:
+        raise GatewayError("benchmark action not JSON", "invalid_json")
+    try:
+        obj, _end = json.JSONDecoder().raw_decode(cleaned[first:])
+    except (ValueError, TypeError):
+        raise GatewayError("benchmark action invalid JSON", "invalid_json") from None
+    if not isinstance(obj, dict) or "mask" not in obj:
+        raise GatewayError("benchmark response missing mask", "missing_mask")
+    mask = obj["mask"]
+    if type(mask) is not int or not 0 <= mask < (1 << items):
+        raise GatewayError("benchmark mask outside item range", "invalid_mask")
+    if obj.get("soul_update") != "":
+        raise GatewayError("benchmark action included an unexpected soul change", "invalid_update")
+    return Reply(mask=mask, soul_update="", model=model[:160],
+                 usage=normalized_usage(usage) or normalized_usage({}))
+
+
 REFLECTION_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
@@ -233,12 +283,17 @@ class OpenRouterGateway:
             raise GatewayError("invalid provider response JSON", "invalid_provider_json") from e
 
     def ask(self, messages: list[dict], *, mode: str = "action",
-            allowed_masks: list[int] | None = None) -> Reply:
-        if mode not in ("action", "reflection"):
+            allowed_masks: list[int] | None = None,
+            benchmark_items: int | None = None) -> Reply:
+        if mode not in ("action", "reflection", "benchmark"):
             raise ValueError("invalid model consultation mode")
         if mode != "action" and allowed_masks is not None:
             raise ValueError("legal-action menu is only valid for action calls")
-        schema = action_menu_schema(allowed_masks) if allowed_masks is not None else ACTION_SCHEMA
+        if (mode == "benchmark") != (benchmark_items is not None):
+            raise ValueError("benchmark item count is required only in benchmark mode")
+        schema = (benchmark_action_schema(benchmark_items) if mode == "benchmark"
+                  else action_menu_schema(allowed_masks) if allowed_masks is not None
+                  else ACTION_SCHEMA)
         if not self.remaining:
             raise GatewayError("per-run request cap reached")
         api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
@@ -251,7 +306,7 @@ class OpenRouterGateway:
         }
         # Prefer a concise answer over spending the entire completion budget
         # on hidden reasoning. Availability/behavior varies by free model.
-        payload["response_format"] = schema if mode == "action" else REFLECTION_SCHEMA
+        payload["response_format"] = REFLECTION_SCHEMA if mode == "reflection" else schema
         payload["provider"] = {"require_parameters": True}
         if self.reasoning == "off":
             payload["reasoning"] = {"enabled": False}
@@ -293,6 +348,10 @@ class OpenRouterGateway:
                 )
             actual_model = str(raw.get("model") or self.model)[:160]
             try:
+                if mode == "benchmark":
+                    return parse_benchmark_answer(
+                        content, actual_model, raw.get("usage") or {}, benchmark_items
+                    )
                 parser = parse_answer if mode == "action" else parse_reflection
                 return parser(content, actual_model, raw.get("usage") or {})
             except GatewayError as exc:
@@ -322,11 +381,24 @@ class FakeGateway(OpenRouterGateway):
         super().__init__(max_requests=max_requests)
 
     def ask(self, messages: list[dict], *, mode: str = "action",
-            allowed_masks: list[int] | None = None) -> Reply:
+            allowed_masks: list[int] | None = None,
+            benchmark_items: int | None = None) -> Reply:
         if not self.remaining:
             raise GatewayError("per-run request cap reached")
         self.calls += 1
         payload = json.loads(messages[-1]["content"])
+        if mode == "benchmark":
+            task = payload["task"]
+            remaining = task["capacity"]
+            mask = 0
+            for i in sorted(range(len(task["items"])),
+                            key=lambda j: (-task["items"][j][1] / task["items"][j][0], j)):
+                cost = task["items"][i][0]
+                if cost <= remaining:
+                    remaining -= cost
+                    mask |= 1 << i
+            return Reply(mask=mask, soul_update="", model="surlife/fake-model",
+                         usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
         if mode == "reflection":
             return Reply(mask=None,
                          soul_update="Check selected costs against capacity before submitting any subset.",
