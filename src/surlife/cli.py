@@ -45,6 +45,12 @@ def main() -> None:
                         help="M1.7 inheritance and matched held-out policy comparison")
     parser.add_argument("--m18", action="store_true",
                         help="M1.8 single-response-bank multi-policy cognition tournament")
+    parser.add_argument("--m19", action="store_true",
+                        help="M1.9 fully offline coverage/synergy task-pack benchmark")
+    parser.add_argument("--m19-pack", choices=("coverage", "synergy", "mixed"),
+                        default="mixed", help="M1.9 non-additive task family")
+    parser.add_argument("--verify-m19-file",
+                        help="M1.9 independent scorer, referee and policy replay")
     parser.add_argument("--m18-bank-in",
                         help="M1.8 verified prior report; replay its bank with zero API calls")
     parser.add_argument("--m18-virtual-cap", type=int, default=4,
@@ -94,10 +100,18 @@ def main() -> None:
         args.max_output_tokens = 4096 if args.provider == "google" else 512
     if args.provider == "google" and not (args.m14 or args.m16 or args.m17 or args.m18 or args.check_model or args.verify_benchmark_file or args.verify_adaptive_file or args.verify_m17_file or args.verify_m18_file):
         parser.error("--provider google is supported only in M1.4/M1.6/M1.7 benchmark experiments")
-    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18)) > 1:
+    if sum((args.m11, args.m12, args.m13, args.m14, args.m16, args.m17, args.m18, args.m19)) > 1:
         parser.error("choose only one experiment stage")
     if args.seed < 0 or args.ticks < 0:
         parser.error("--seed and --ticks must be nonnegative")
+    if args.verify_m19_file:
+        from .m19 import verify_m19_file
+        try:
+            print(json.dumps(verify_m19_file(args.verify_m19_file),
+                             indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
     if args.verify_m18_file:
         from .m18 import verify_m18_file
         try:
@@ -145,6 +159,13 @@ def main() -> None:
             from .evaluation import evaluate_snapshot
         try:
             print(json.dumps(evaluate_snapshot(args), indent=2, sort_keys=True))
+        except ValueError as exc:
+            parser.error(str(exc))
+        return
+    if args.m19:
+        from .m19 import run_m19
+        try:
+            print(json.dumps(run_m19(args), indent=2, sort_keys=True))
         except ValueError as exc:
             parser.error(str(exc))
         return
