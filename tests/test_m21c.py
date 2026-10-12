@@ -43,13 +43,17 @@ def test_disjoint_identical_task_for_each_paired_comparison():
     from surlife.m21c import digest
     live |= {digest(row["task"]) for row in report["episodes"]["primary"]["ticks"]}
     holdouts = []
-    for a, b in zip(report["bank"], report["bank"][1:]):
-        if a["kind"] == "baseline":
-            assert b["kind"] == "candidate"
-            assert a["actor"] == b["actor"]
-            assert a["task_hash"] == b["task_hash"]
-            assert a["task_hash"] not in live
-            holdouts.append(a["task_hash"])
+    # Different organisms may interleave baseline requests. Pair within actor.
+    unfinished = {}
+    for entry in report["bank"]:
+        if entry["kind"] == "baseline":
+            assert entry["actor"] not in unfinished
+            unfinished[entry["actor"]] = entry["task_hash"]
+            assert entry["task_hash"] not in live
+            holdouts.append(entry["task_hash"])
+        elif entry["kind"] == "candidate":
+            assert unfinished.pop(entry["actor"]) == entry["task_hash"]
+    assert not unfinished
     assert len(holdouts) == len(set(holdouts))
     assert verify_report(report)["verified"]
 
@@ -58,7 +62,7 @@ def test_entire_replay_never_needs_gateway_and_detects_forgery():
     original = build_report(17, 24)
     altered = copy.deepcopy(original)
     altered["bank"][0]["response"]["note"] = "FORGED"
-    with pytest.raises(ValueError, match="mismatch"):
+    with pytest.raises(ValueError, match="mismatch|unused"):
         verify_report(altered)
     altered = copy.deepcopy(original)
     altered["bank"][0]["messages_hash"] = "wrong"
