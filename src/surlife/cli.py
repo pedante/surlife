@@ -21,6 +21,8 @@ def main() -> None:
     parser.add_argument("--max-requests", type=int, default=6, help="total LLM calls per run, hard admission cap")
     parser.add_argument("--max-output-tokens", type=int, default=None,
                         help="output including thinking tokens: Google default 4096 (max 8192), other providers default 512")
+    parser.add_argument("--google-timeout-seconds", type=int, default=90,
+                        help="per-Gemini-request timeout (10..180 seconds, default 90); SDK retries disabled")
     parser.add_argument("--reasoning", choices=("off", "low", "auto"), default="off",
                         help="OpenRouter reasoning: off (default), low effort, or auto")
     parser.add_argument("--souls-dir", default="out/souls")

@@ -178,7 +178,8 @@ def _gateway(args):
         check_gemini_model(args.model)
         return GeminiGateway(model=args.model, max_requests=args.max_requests,
                              max_output_tokens=args.max_output_tokens,
-                             reasoning=args.reasoning)
+                             reasoning=args.reasoning,
+                             timeout_seconds=getattr(args, "google_timeout_seconds", 90))
     if args.provider == "fake":
         return FakeGateway(max_requests=args.max_requests)
     raise ValueError("unknown benchmark provider")
